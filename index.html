@@ -639,7 +639,7 @@ G.afe = {name:"Analog front-end (amplifier / shaper) ×2", group:"Analog chain",
  how:[
   "What comes in. A muon produces about 150 photoelectrons in the SiPM. With a gain of about 3 × 10⁶ that is roughly 70 pC of charge, delivered within about 100 ns. Across the 50 Ω termination at the AFE input this gives a pulse of a few tens of millivolts (TP1). A single photoelectron, such as a dark count, gives only about 0.2 mV.",
   "What the amplifier does. The baseline is a non-inverting amplifier around a fast op-amp (LMH6629) with a gain of 21, set by a 1 kΩ feedback resistor Rf and a 50 Ω gain resistor Rg. A typical muon becomes a pulse of about 0.6 to 0.8 V at the output (TP2). A small capacitor across Rf limits the bandwidth to roughly 50–100 MHz, which removes high-frequency noise without noticeably slowing the pulse.",
-  "Keeping the baseline stable on a single supply. The op-amp runs from 5 V only, with no negative rail. The SiPM signal reaches the amplifier input through a 100 nF capacitor (AC coupling), and a resistor divider holds the input at about 0.3 V. A capacitor in series with Rg makes the gain 21 for pulses but only 1 for DC, so the output baseline also sits at 0.3 V instead of being amplified to about 6 V. Pulses then rise from 0.3 V with plenty of room up to the 5 V rail.",
+  "Keeping the baseline stable on a single supply. The op-amp runs from 5 V only, with no negative rail. The SiPM signal reaches the amplifier input through a 100 nF capacitor (AC coupling), and a resistor divider (R2, R3) with a 1 µF filter capacitor (C2) makes a quiet 0.3 V, which reaches the input through a 10 kΩ resistor (R9). R9 matters: without it, C2 would sit directly on the signal node and short the SiPM pulse to ground, which an ngspice simulation of this circuit confirmed. A capacitor in series with Rg makes the gain 21 for pulses but only 1 for DC, so the output baseline also sits at 0.3 V instead of being amplified to about 6 V. Pulses then rise from 0.3 V with plenty of room up to the 5 V rail.",
   "Two outputs. The AFE output goes straight to the comparator (the fast path) and, through a slower shaping stage, to the peak-hold (the pulse-height path). The fast path needs good timing; the slow path needs a smooth, rounded pulse so the peak-hold can catch its maximum accurately."],
  conn:[["From","The SiPM signal coax, terminated by 50 Ω at the AFE input (TP1)."],["To","The comparator's + input (TP2), and the peak-hold through a CR-RC shaping stage."],["Power","The 5 V analog rail, filtered separately from the digital supply."]],
  specs:["Amplifies SiPM pulses with adequate SNR to separate muons from baseline noise (spec)","Gain ≈ 21 so a typical muon gives 0.6–0.8 V","Output noise below about 1 mV RMS, so single photoelectrons (≈ 5 mV at the output) remain visible","Single 5 V supply, stable baseline at ≈ 0.3 V, under 100 mW per channel"],
@@ -647,13 +647,13 @@ G.afe = {name:"Analog front-end (amplifier / shaper) ×2", group:"Analog chain",
   ["Simulate first","Build the circuit in LTspice before touching hardware. Model the SiPM as a current source in parallel with its capacitance (a few nF for the 6 mm sensor) and feed it a pulse with about 1 ns rise and 50–100 ns fall carrying 70 pC. Check the output amplitude, the pulse shape, and that there is no ringing or oscillation."],
   ["Choose the op-amp","The baseline LMH6629 is very fast, runs from a single 5 V supply, and is stable at gains of 10 or more, which suits a gain of 21. If it is hard to get, use two stages of a unity-gain-stable op-amp such as the OPA355, each with a gain of about 4.5."],
   ["Set gain and bandwidth","Use Rf = 1 kΩ and Rg = 50 Ω for a gain of 21. Put a 1–2 pF C0G capacitor across Rf and adjust it in simulation until the pulse has a clean shape without overshoot."],
-  ["Set the baseline","Hold the + input at about 0.3 V with a divider from 5 V (for example 15 kΩ and 1 kΩ, with 1 µF across the lower resistor), bring the SiPM signal in through 100 nF, and put 10 µF in series with Rg so the DC gain is 1."],
+  ["Set the baseline","Hold the + input at about 0.3 V with a divider from 5 V (15 kΩ and 1 kΩ, with 1 µF across the lower resistor), connect the divider to the + input through a 10 kΩ resistor so the 1 µF capacitor does not short the signal, bring the SiPM signal in through 100 nF, and put 10 µF in series with Rg so the DC gain is 1."],
   ["Add the slow branch","After the AFE output, add a simple CR-RC shaping stage with a time constant of about 100–200 ns and a buffer, and send that to the peak-hold. Leave the fast output going straight to the comparator."],
   ["Lay it out tightly","Keep the input trace from the connector to the op-amp short, keep a solid ground plane underneath, place Rf, Rg and the feedback capacitor right at the op-amp pins, and decouple the supply pin with 100 nF and 10 µF. Put a 33 Ω resistor in series with the output and a test point after it (TP2)."],
   ["Build one channel first","Build and test a single channel on a prototype board before ordering the two-channel baseboard."]],
  parts:[["Op-amp","TI LMH6629 (alternative: 2 × OPA355 stages)","Fast enough for nanosecond pulses on a single 5 V rail."],
   ["Feedback parts","1 kΩ and 50 Ω thin-film resistors, 1–2 pF C0G capacitor","C0G capacitors do not change with temperature or voltage."],
-  ["Coupling and baseline","100 nF input capacitor, 10 µF in series with Rg, 15 kΩ / 1 kΩ divider","Sets a stable 0.3 V baseline on a single supply."],
+  ["Coupling and baseline","100 nF input capacitor, 10 µF in series with Rg, 15 kΩ / 1 kΩ divider with 1 µF, 10 kΩ feed resistor","Sets a stable 0.3 V baseline on a single supply."],
   ["Test access","SMA or U.FL test point after the 33 Ω output resistor","Lets you look at TP2 without disturbing the circuit."]],
  test:[["Gain check with a test pulse","Feed a fast square edge from a function generator through a 1 pF capacitor into the input; each edge then injects a known charge. The output amplitude should match the simulation within about 10 %."],
   ["Noise floor","With the input terminated by 50 Ω and no SiPM connected, measure the output RMS noise on the oscilloscope. It should be below about 1 mV."],
@@ -1525,10 +1525,12 @@ SHEETS.afe = {dwg:"COMET-ANA-01", title:"Analog front-end · channel A", sub:"Ch
   WR(`M${a} 300H310`, "s"); TP(230, 300, "TP1"); J(260, 300); WR("M260 300V310");
   R(260, 330, "v", "R1", "50 Ω", "R1 · 50 Ω · terminates the coax at the receiving end; the SiPM current flows through it"); GND(260, 350);
   C(330, 300, "h", "C1", "100 nF", "C1 · 100 nF · AC coupling, blocks DC from the SiPM side");
-  WR("M350 300H540V328H576", "s"); J(400, 300);
-  R(400, 250, "v", "R2", "15 kΩ", "R2 · 15 kΩ · upper half of the 0.31 V baseline divider"); PWR(400, 230, "+5V_A"); WR("M400 270V300");
-  WR("M400 300V320"); J(400, 310); R(400, 340, "v", "R3", "1 kΩ", "R3 · 1 kΩ · lower half of the baseline divider"); GND(400, 360);
-  WR("M400 310H450V320"); C(450, 340, "v", "C2", "1 µF", "C2 · 1 µF · keeps the baseline quiet"); GND(450, 360);
+  WR("M350 300H540V328H576", "s"); J(440, 300);
+  R(440, 180, "v", "R2", "15 kΩ", "R2 · 15 kΩ · upper half of the 0.31 V baseline divider"); PWR(440, 160, "+5V_A"); WR("M440 200V240"); J(440, 220);
+  R(440, 260, "v", "R9", "10 kΩ", "R9 · 10 kΩ · feeds the baseline to the + input; without it C2 would short the SiPM pulse to ground"); WR("M440 280V300");
+  WR("M440 220H570"); J(520, 220);
+  R(520, 240, "v", "R3", "1 kΩ", "R3 · 1 kΩ · lower half of the baseline divider"); GND(520, 260);
+  C(570, 240, "v", "C2", "1 µF", "C2 · 1 µF · keeps the baseline quiet; sits behind R9, not on the signal node"); GND(570, 260);
   const u = OPA(620, 340, "U1", "LMH6629", "U1 · LMH6629 · fast op-amp, stable at gain ≥ 10, single 5 V supply");
   WR("M620 312V220"); PWR(620, 220, "+5V_A"); J(620, 250);
   WR("M620 250H690"); C(690, 270, "v", "C3", "100 nF", "C3 · 100 nF · decoupling right at the supply pin"); GND(690, 290);
@@ -1551,8 +1553,8 @@ SHEETS.afe = {dwg:"COMET-ANA-01", title:"Analog front-end · channel A", sub:"Ch
   WR("M940 520H1006", "s"); WR("M1094 532H1110V590H996V544H1006"); J(1110, 532); WR("M1110 532H1130", "s");
   WR("M1050 504V494"); PWR(1050, 494, "+5V_A"); GND(1050, 560);
   POUT(1130, 532, "to Peak-hold A", "peak");
-  NOTE(40, 430, 330, ["R1 terminates the coax here (50 Ω), so the", "SiPM pulse appears across R1 at TP1.", "C1 blocks DC; R2/R3 hold + at about 0.31 V."]);
-  NOTE(40, 520, 430, ["Gain for pulses = 1 + R4/R5 = 1 + 1000/50 = 21.", "C6 blocks DC through R5, so the DC gain is 1 and", "the output baseline stays at about 0.3 V.", "C5 limits the bandwidth; tune it in LTspice."]);
+  NOTE(40, 430, 330, ["R1 terminates the coax here (50 Ω), so the", "SiPM pulse appears across R1 at TP1.", "C1 blocks DC; R2/R3/C2 make 0.31 V,", "fed to + through R9 (10 kΩ) so C2", "does not short the pulse."]);
+  NOTE(40, 540, 430, ["Gain for pulses = 1 + R4/R5 = 1 + 1000/50 = 21.", "C6 blocks DC through R5, so the DC gain is 1 and", "the output baseline stays at about 0.3 V.", "C5 limits the bandwidth; tune it in LTspice."]);
   NOTE(830, 222, 400, ["Fast path: TP2 goes straight to the comparator.", "Typical muon at TP2 ≈ 0.6–0.8 V above baseline."]);
   NOTE(680, 604, 200, ["Shaper: CR-RC,", "τ = 100 ns per stage."]);
 }};
