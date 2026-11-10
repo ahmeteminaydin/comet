@@ -1,0 +1,18 @@
+* COMET behavioural models (LTspice and ngspice)
+*
+* COMET_OPAMP: open-loop gain 1e4, gain-bandwidth about 1 GHz,
+* output limited to 0.02 ... 4.95 V (single 5 V supply).
+* Stand-in for the LMH6629 until the vendor model is added.
+.subckt COMET_OPAMP inp inn out
+G1 0 x inp inn 1m
+Rx x 0 10Meg
+Cx x 0 0.159p
+B1 o 0 V=max(0.02, min(4.95, V(x)))
+Ro o out 10
+.ends COMET_OPAMP
+*
+* COMET_CMP: comparator with a 3.3 V output, about 3 mV transition width.
+* Stand-in for the TLV3501.
+.subckt COMET_CMP inp inn out
+B1 out 0 V=1.65*(1+tanh((V(inp)-V(inn))/0.003))
+.ends COMET_CMP
