@@ -167,7 +167,7 @@ function spiceShow(id){
   zip.href = `${base}sim/${id}/COMET_${up}_LTspice.zip`; cir.href = `${base}sim/${id}/COMET_${up}.cir`;
   [zip, cir].forEach(a => { if (base){ a.target = "_blank"; a.rel = "noopener"; a.removeAttribute("download"); } else { a.removeAttribute("target"); a.setAttribute("download", ""); } });
   sp$("sp-note").textContent = cfg.note || "";
-  spRenderTabs(); spRenderParams(); spShowNetlist();
+  spRenderTabs(); spRenderParams(); spShowNetlist(); spChanged();
   const k = spKey(id), r = SPS.res[id + ":" + (SPS.ana[id] || 0)];
   if (r && r.key === k) spRender(r);
   else if (SPS.eng) spRunCurrent();
@@ -247,10 +247,16 @@ async function spRunSweep(i){
 }
 
 /* ---- editing part values on the sheet ---- */
+const refUnit = r => /^C/.test(r) ? "F" : /^(L|FB)/.test(r) ? "H" : "Ω";
+function spChanged(){
+  const id = SPS.id, V = id && SIMV[id]; if (!V){ sp$("sp-chg").textContent = ""; return; }
+  const ch = Object.keys(V.vals).filter(r => V.vals[r] !== V.def[r]);
+  sp$("sp-chg").textContent = ch.length ? "Changed from the design (shown in pink on the sheet): " + ch.map(r => `${r} = ${engText(siNum(V.vals[r]), refUnit(r))} (design ${engText(siNum(V.def[r]), refUnit(r))})`).join(", ") + "." : "";
+}
 let spEdit = null;
 function spOpenPop(g, cx, cy){
   const id = SPS.id, ref = g.getAttribute("data-ref"); if (!id || !ref) return;
-  const V = SIMV[id], tip = (g.getAttribute("data-tip") || "").replace(/ · click to change$/, "").replace(/ · now .*\(edited\)/, "");
+  const V = SIMV[id], tip = (g.getAttribute("data-tip") || "").replace(/ · click to change$/, "").replace(/ · now [^·]*\(design [^)]*\)/, "");
   spEdit = {ref, g};
   sp$("sp-pop-t").textContent = `${ref} · ${engText(siNum(V.vals[ref]), UNIT[ref[0] === "C" ? "C" : ref[0] === "L" ? "L" : ref.startsWith("FB") ? "FB" : "R"])}`;
   sp$("sp-pop-d").textContent = tip.replace(/^[^·]*·\s*[^·]*·\s*/, "");
@@ -270,7 +276,7 @@ function spApply(def){
   if (!isFinite(v) || v <= 0){ sp$("sp-err").textContent = "Enter a positive value, for example 2.2k, 470n or 1.5p."; return; }
   if (v < 1e-15 || v > 1e12){ sp$("sp-err").textContent = "That value is outside 1 f to 1 T."; return; }
   V.vals[ref] = def ? V.def[ref] : spiceNum(v);
-  spClosePop(); drawSheet(id); spMarkStale();
+  spClosePop(); drawSheet(id); spMarkStale(); spChanged();
   const g = DETS.querySelector(`[data-ref="${ref}"]`); if (g) g.focus({preventScroll:true});
 }
 DETS.addEventListener("click", e => { const g = e.target.closest(".edp"); if (g && SPS.id){ e.stopPropagation(); spOpenPop(g, e.clientX, e.clientY); } });
@@ -282,7 +288,7 @@ sp$("sp-in").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preven
 document.addEventListener("pointerdown", e => { const p = sp$("sp-pop"); if (!p.hidden && !p.contains(e.target) && !e.target.closest(".edp")) spClosePop(); });
 sp$("sp-run").addEventListener("click", spRunCurrent);
 sp$("sp-reset").addEventListener("click", () => { const id = SPS.id; if (!id) return; const V = SIMV[id]; Object.keys(V.vals).forEach(r => V.vals[r] = V.def[r]);
-  (SIMCFG[id].params || []).forEach(p => SIMP[id][p.k] = p.def); drawSheet(id); spRenderParams(); spMarkStale(); });
+  (SIMCFG[id].params || []).forEach(p => SIMP[id][p.k] = p.def); drawSheet(id); spRenderParams(); spMarkStale(); spChanged(); });
 sp$("sp-tabs").addEventListener("click", e => { const t = e.target.closest("[data-ana]"), s = e.target.closest("[data-sweep]");
   if (t){ SPS.ana[SPS.id] = +t.dataset.ana; spiceShow(SPS.id); } if (s) spRunSweep(+s.dataset.sweep); });
 sp$("sp-params").addEventListener("change", e => { const i = e.target.closest("input[data-k]"); if (!i) return; const p = SIMCFG[SPS.id].params.find(q => q.k === i.dataset.k);

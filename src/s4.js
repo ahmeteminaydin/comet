@@ -10,7 +10,7 @@ SHEETS.bias = {dwg:"COMET-PWR-01", title:"Bias supply · boost and filter", sub:
   WR("M470 240H620", "p"); J(510, 240); J(570, 240); TP(490, 240, "TP7");
   WR("M510 240V260"); C(510, 280, "v", "C21", "1 µF", "C21 · 1 µF 100 V · output capacitor"); GND(510, 300);
   WR("M570 240V280"); R(570, 300, "v", "R20", "1 MΩ", "R20 · upper feedback resistor (R1 in the guide)"); WR("M570 320V380"); J(570, 360);
-  R(570, 400, "v", "R21", "≈ 47 kΩ *", "R21 · lower feedback resistor (R2), pick for 27.0 V at mid-scale trim"); GND(570, 420);
+  R(570, 400, "v", "R21", "48.1 kΩ *", "R21 · lower feedback resistor (R2): sets about 27.0 V with the DAC at mid-scale"); GND(570, 420);
   WR("M454 360H570"); WR("M286 380H260"); NET(256, 380, "+5V (enable)", "end"); GND(370, 454);
   WR("M570 360H610V460H630"); R(650, 460, "h", "R22", "2 MΩ", "R22 · trim resistor (R3): R20/R22 = 0.5, so 2 V of DAC moves Vout by 1 V");
   WR("M670 460H1060", "p"); PRIN(1060, 460, "from DAC · VOUTD (trim)", "thr");
@@ -28,7 +28,7 @@ SHEETS.bias = {dwg:"COMET-PWR-01", title:"Bias supply · boost and filter", sub:
   WR("M800 240V268"); R(800, 288, "v", "R25", "200 kΩ", "R25 · monitor divider, top"); WR("M800 308V336"); J(800, 326);
   R(800, 356, "v", "R26", "10 kΩ", "R26 · monitor divider, bottom: VBIAS_MON = Vbias / 21 ≈ 1.29 V"); GND(800, 376);
   WR("M800 326H1060"); POUT(1060, 326, "to MCU · ADC VBIAS_MON", "mcu");
-  NOTE(40, 560, 500, ["Vout = Vfb·(1 + R20/R21 + R20/R22) − V_DAC·R20/R22", "With R20/R22 = 0.5, a DAC swing of 0–2 V moves Vout by 1 V.", "* Pick R21 so Vout = 27.0 V with the DAC at mid-scale."]);
+  NOTE(40, 560, 500, ["Vout = Vfb·(1 + R20/R21 + R20/R22) − V_DAC·R20/R22", "With R20/R22 = 0.5, a DAC swing of 0–2 V moves Vout by 1 V.", "* 48.1 kΩ (0.5 % series) gives 27.0 V at mid-scale; 47–49 kΩ also works."]);
   NOTE(560, 560, 330, ["Ripple < 5 mVp-p at the SiPMs: FB3 + C22/C23,", "then the 1 kΩ / 1 µF RC per channel.", "Use 100 V ceramics; they lose capacitance", "at high DC voltage."]);
 }};
 

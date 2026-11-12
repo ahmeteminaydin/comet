@@ -147,7 +147,7 @@ function spiceBuild(id, opt = {}){
   });
 
   // test bench: supplies, stimuli, loads
-  const tb = [], sub$ = (s, n) => s.replace(/\$N/g, n);
+  const tb = [], sub$ = (s, n) => s.replace(/\$N/g, n).replace(/@\[([^\]]+)\]/g, (m, at) => resolve(at) || "0");
   const benchFor = (map, look, kind) => Object.entries(map || {}).forEach(([k, f]) => {
     const n = look(k); if (!n){ warn.push(`${kind} "${k}" not found on the sheet`); return; }
     const s = typeof f === "function" ? f(ana.id, P) : f; if (!s) return;

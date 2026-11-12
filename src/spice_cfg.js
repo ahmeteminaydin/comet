@@ -43,22 +43,31 @@ SIMCFG.sipm = {
   note: "The SiPM model lumps fired and passive microcells (≈3.4 nF in total). That capacitance discharging through the 50 Ω termination sets the slow decay. Parameters are approximate: compare with the real pulse in step 2 of the build order.",
 };
 
+const BIAS_SET = (P) => { const V = SIMV.bias.vals, r20 = siNum(V.R20), r21 = siNum(V.R21), r22 = siNum(V.R22);
+  return 1.235*(1 + r20/r21 + r20/r22) - P.VDAC*r20/r22; };   // LT3482: FB regulates to 1.235 V
 SIMCFG.bias = {
-  params: [{k:"VOUT", label:"Converter output (DC)", def:27, unit:"V", min:20, max:32, step:0.1},
+  params: [{k:"VDAC", label:"Trim DAC output (VOUTD)", def:1.024, unit:"V", min:0, max:2.048, step:0.01},
            {k:"VRIP", label:"Converter ripple at TP7", def:20, unit:"mVpp", min:0, max:500, step:5, spice:v => v*1e-3},
            {k:"FRIP", label:"Ripple frequency", def:1100, unit:"kHz", min:1, max:5000, step:10, spice:v => v*1e3}],
-  exclude: ["U12", "L1", "D2", "C27"], excludeWhy: "the boost converter is replaced by a DC + ripple source at TP7",
+  exclude: ["U12", "L1", "D2", "C27"], excludeWhy: "the boost converter is replaced by an ideal regulator at TP7 that holds FB at 1.235 V, plus ripple",
   values: {FB3:"1u"}, suffix: {FB3:" (BLM18 bead)"},
-  drive: {"tp:TP7": a => a === "ac" ? "V_CONV $N 0 DC {VOUT} AC 1" : "B_CONV $N 0 V={VOUT}+{VRIP}/2*sin(6.2832*{FRIP}*time)*(1-exp(-time/2u))"},
+  drive: {"tp:TP7": a => a === "ac" ? "V_CONV $N 0 DC 27 AC 1" : [
+    "* ideal boost regulator: integrates (1.235 V - FB) with ~10 kHz loop bandwidth; cannot go below VIN or above 40 V",
+    "B_ERR 0 conv_int I=1m*(1.235-V(@[pin:R21.1]))", "C_INT conv_int 0 0.72n", "R_INT conv_int 0 1G",
+    "B_CONV $N 0 V=max(4.6,min(40,V(conv_int)))+{VRIP}/2*sin(6.2832*{FRIP}*time)*(1-exp(-time/2u))"]},
   ports: {"to SiPM A · VBIAS_A": "I_SIPMA $N 0 0.6u", "to SiPM B · VBIAS_B": "I_SIPMB $N 0 0.6u", "to MCU · ADC VBIAS_MON": "C_ADC $N 0 10p",
-          "from DAC · VOUTD (trim)": "V_DAC $N 0 1.0", "from USB · +5V_A": "V_USB $N 0 5"},
+          "from DAC · VOUTD (trim)": "V_DAC $N 0 {VDAC}", "from USB · +5V_A": "V_USB $N 0 5"},
   analyses: [
-    {id:"tran", label:"Ripple (transient)", cmd:".tran 2n 40u",
-     probes: [{name:"TP7 converter output", at:"tp:TP7", rel:true}, {name:"After FB3 + C22/C23", at:"pin:C22.1", rel:true}, {name:"VBIAS_A at SiPM A", at:"port:to SiPM A · VBIAS_A", rel:true}],
+    {id:"tran", label:"Bias and ripple (transient)", cmd:".tran 2n 40u",
+     probes: [{name:"TP7 converter output", at:"tp:TP7", rel:true}, {name:"After FB3 + C22/C23", at:"pin:C22.1", rel:true}, {name:"VBIAS_A at SiPM A", at:"port:to SiPM A · VBIAS_A", rel:true},
+              {name:"VBIAS_A (absolute)", at:"port:to SiPM A · VBIAS_A"}, {name:"FB node", at:"pin:R21.1"}],
      plots: [{title:"TP7 · converter output (ripple only, DC removed)", probes:["TP7 converter output"], unit:"mV", k:1e3},
              {title:"After the bead and C22/C23", probes:["After FB3 + C22/C23"], unit:"mV", k:1e3},
-             {title:"VBIAS_A · what SiPM A sees", probes:["VBIAS_A at SiPM A"], unit:"µV", k:1e6}],
+             {title:"VBIAS_A · ripple that SiPM A sees", probes:["VBIAS_A at SiPM A"], unit:"µV", k:1e6}],
      measures: [
+       {label:"Set point from R20, R21, R22 and the DAC", f:(D, P) => BIAS_SET(P), fmt:v => fmtN(v, "V", 1, 2) + (v < 4.6 ? " (below VIN: a boost cannot go there)" : v > 40 ? " (above the 40 V parts)" : "")},
+       {label:"DC bias at SiPM A", f:D => MS.at(D["VBIAS_A (absolute)"], 39e-6), fmt:v => fmtN(v, "V", 1, 2)},
+       {label:"SiPM overvoltage at 21 °C", f:D => MS.at(D["VBIAS_A (absolute)"], 39e-6) - 24.45, fmt:v => fmtN(v, "V", 1, 2), target:{text:"1–5 V (SiPM operating range)", ok:v => v >= 1 && v <= 5}},
        {label:"Ripple at TP7", f:D => MS.pp(D["TP7 converter output"], 25e-6, 40e-6), fmt:v => fmtN(v, "mVpp", 1e3, 2)},
        {label:"Ripple after FB3 + C22/C23", f:D => MS.pp(D["After FB3 + C22/C23"], 25e-6, 40e-6), fmt:v => fmtN(v, "mVpp", 1e3, 3)},
        {label:"Ripple at SiPM A", f:D => MS.pp(D["VBIAS_A at SiPM A"], 25e-6, 40e-6), fmt:v => fmtN(v, "µVpp", 1e6, 2), target:{text:"< 5 mVpp (spec)", ok:v => v < 5e-3}}]},
@@ -68,7 +77,7 @@ SIMCFG.bias = {
      measures: [
        {label:"At the ripple frequency, after FB3 + C22/C23", f:(D, P) => MS.db(D["After FB3 + C22/C23"], P.FRIP*1e3), fmt:v => fmtN(v, "dB", 1, 1)},
        {label:"At the ripple frequency, at SiPM A", f:(D, P) => MS.db(D["VBIAS_A"], P.FRIP*1e3), fmt:v => fmtN(v, "dB", 1, 1)}]}],
-  note: "The boost converter itself (U12, L1, D2, C27) is not simulated; TP7 is driven with its DC output plus a sine ripple. LTspice ships an LT3482 model if you want the full converter.",
+  note: "The converter's switching (U12, L1, D2, C27) is not simulated. TP7 is driven by an ideal regulator that holds the FB node at the LT3482's 1.235 V reference, so R20, R21, R22 and the DAC set the output exactly as on the real board, plus a sine ripple.",
 };
 
 SIMCFG.afe = {

@@ -1,7 +1,7 @@
 * COMET - Bias supply - boost and filter - DWG COMET-PWR-01
-* Netlist generated from the COMET system schematic (sheet 7). Analysis: Ripple (transient).
+* Netlist generated from the COMET system schematic (sheet 7). Analysis: Bias and ripple (transient).
 * Part values as shown on the sheet.
-* Not simulated: U12, L1, D2, C27 (the boost converter is replaced by a DC + ripple source at TP7).
+* Not simulated: U12, L1, D2, C27 (the boost converter is replaced by an ideal regulator at TP7 that holds FB at 1.235 V, plus ripple).
 
 * =====================================================================
 * COMET behavioural SPICE models  (ngspice and LTspice compatible)
@@ -243,14 +243,14 @@ Rod od vd 1
 .ends MCP4728_BEH
 
 * ---- stimulus parameters ----
-.param VOUT=27
+.param VDAC=1.024
 .param VRIP=20m
 .param FRIP=1.1Meg
 
 * ---- circuit (from the sheet) ----
 C21 tp7 0 1u
 R20 tp7 n1 1Meg
-R21 n1 0 47k
+R21 n1 0 48.1k
 R22 n1 from_dac_voutd_trim 2Meg
 XFB3 tp7 n2 BEAD_BEH L=1u
 C22 n2 0 1u
@@ -266,9 +266,13 @@ R26 to_mcu_adc_vbias_mon 0 10k
 I_SIPMA to_sipm_a_vbias_a 0 0.6u
 I_SIPMB to_sipm_b_vbias_b 0 0.6u
 C_ADC to_mcu_adc_vbias_mon 0 10p
-V_DAC from_dac_voutd_trim 0 1.0
+V_DAC from_dac_voutd_trim 0 {VDAC}
 V_USB from_usb_p5v_a 0 5
-B_CONV tp7 0 V={VOUT}+{VRIP}/2*sin(6.2832*{FRIP}*time)*(1-exp(-time/2u))
+* ideal boost regulator: integrates (1.235 V - FB) with ~10 kHz loop bandwidth; cannot go below VIN or above 40 V
+B_ERR 0 conv_int I=1m*(1.235-V(n1))
+C_INT conv_int 0 0.72n
+R_INT conv_int 0 1G
+B_CONV tp7 0 V=max(4.6,min(40,V(conv_int)))+{VRIP}/2*sin(6.2832*{FRIP}*time)*(1-exp(-time/2u))
 * unconnected nets
 RLK_from_usb_p5v_a from_usb_p5v_a 0 1G
 

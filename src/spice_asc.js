@@ -102,7 +102,7 @@ function spiceAsc(id){
   rec.ports.forEach(p => { addFlag(p.pt, b.net(p.pt)); const s = sc(p.pt);
     texts.push(`TEXT ${p.dir === "in" && s[0] < 900 ? s[0] - 16 : s[0] + 16} ${s[1] - 24} ${p.dir === "in" && s[0] < 900 ? "Right" : "Left"} 1 ;${ascii(p.label)}`); });
   // nets used by test-bench lines but not named on the sheet get a flag at one of their pins
-  const needed = new Set(); [...b.tb, ...b.leak].forEach(l => l.split(/\s+/).slice(1).forEach(t => needed.add(t)));
+  const needed = new Set(); [...b.tb, ...b.leak].forEach(l => { if (!l.startsWith("*")) l.split(/[^A-Za-z0-9_]+/).slice(1).forEach(t => needed.add(t)); });
   rec.parts.forEach(p => { if (excl.has(p.ref) || p.kind === "CONN") return; (Array.isArray(p.pins) ? p.pins : Object.values(p.pins)).forEach(q => { const nm = b.net(q); if (needed.has(nm) && !named.has(nm) && nm !== "0") addFlag(q, nm); }); });
 
   // split wires so every connection is at a wire end (LTspice connects ends only)

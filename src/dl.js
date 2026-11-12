@@ -68,13 +68,14 @@ function two(x, y, o, ref, val, tip, body, kind, extra){
   if (SV && SV.vals[ref] != null){
     edit = true;
     const v = siNum(SV.vals[ref]), d = siNum(SV.def[ref]);
-    shown = (SV.pre[ref] || "") + engText(v, UNIT[kind] || "") + (SV.suf[ref] || "");
-    if (Math.abs(v - d) > Math.abs(d)*1e-9){ vcls = "rv chg"; t += ` · now ${engText(v, UNIT[kind] || "")} (edited)`; }
+    const changed = Math.abs(v - d) > Math.abs(d)*1e-9;
+    shown = changed ? engText(v, UNIT[kind] || "") : (SV.pre[ref] || "") + engText(v, UNIT[kind] || "") + (SV.suf[ref] || "");
+    if (changed){ vcls = "rv edv"; t += ` · now ${engText(v, UNIT[kind] || "")} (design ${engText(d, UNIT[kind] || "")})`; }
     t += " · click to change";
   }
   if (REC) REC.parts.push(Object.assign({kind, ref, val, x, y, a, pins:[rp(x, y, a, -20, 0), rp(x, y, a, 20, 0)]}, extra || {}));
   const g = grp(t, edit ? "edp" : null), b = ee("g", a ? {transform:`rotate(${a} ${x} ${y})`} : {}, g);
-  if (edit){ g.setAttribute("data-ref", ref); g.setAttribute("tabindex", "0"); g.setAttribute("role", "button"); g.setAttribute("aria-label", `${ref}, ${shown}. Change value`); }
+  if (edit){ const vert = a % 180 !== 0; ee("rect", vert ? {x:x-14, y:y-24, width:84, height:48, rx:4, class:"hitp"} : {x:x-30, y:y-26, width:60, height:54, rx:4, class:"hitp"}, g); g.setAttribute("data-ref", ref); g.setAttribute("tabindex", "0"); g.setAttribute("role", "button"); g.setAttribute("aria-label", `${ref}, ${shown}. Change value`); }
   body(b, x, y);
   if (a === 90 || a === 270){ tx(x+13, y-3, ref, "rf", null, g); tx(x+13, y+12, shown, vcls, null, g); }
   else { tx(x, y-12, ref, "rf", "middle", g); tx(x, y+22, shown, vcls, "middle", g); }
