@@ -1,0 +1,131 @@
+
+<div class="shell">
+  <header class="top">
+    <div>
+      <div class="eyebrow">BAATCH · METU EE493–494 · DWG COMET-SYS-001 · rev A</div>
+      <h1>COM<span class="mu">E</span>T</h1>
+      <p class="lede">Compact Photonics-Enabled Cosmic Muon Detector. The whole system on one sheet, from a muon crossing the scintillators to a record on disk. Click any block on the schematic for its build guide.</p>
+      <p class="lede" style="margin-top:8px"><button class="linkbtn" type="button" data-open="overview">Start with the system overview →</button></p>
+    </div>
+    <div class="side">
+      <div class="controls">
+        <button class="btn primary" id="b-mu" type="button">Send a muon through both</button>
+        <button class="btn" id="b-noise" type="button">Inject a noise hit</button>
+        <button class="btn" id="b-auto" type="button" aria-pressed="false">Auto-run</button>
+      </div>
+      <div class="counters" aria-live="polite">
+        <div>Singles A<b id="n-a">0</b></div>
+        <div>Singles B<b id="n-b">0</b></div>
+        <div class="c">Coincidences<b id="n-c">0</b></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="tbar">
+    <label for="ang">Telescope zenith angle θ</label>
+    <input id="ang" type="range" min="0" max="90" step="5" value="0">
+    <output id="ang-o" for="ang">0°</output>
+    <div class="snaps" role="group" aria-label="Spec angles"><button type="button" data-a="0">0°</button><button type="button" data-a="30">30°</button><button type="button" data-a="45">45°</button><button type="button" data-a="60">60°</button><button type="button" data-a="90">90°</button></div>
+    <span class="exp">Expected <b id="ang-r">–</b> coincidences/min <span>(10 × 10 cm slabs, 15 cm apart)</span></span>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="dbar" id="dbar" hidden>
+    <button class="btn" id="d-back" type="button">← System</button>
+    <div class="crumb"><span class="eyebrow">COMET-SYS-001 ›</span><b id="db-t"></b><span class="eyebrow" id="db-d"></span></div>
+    <span class="dhint">Hover a part for its role · click a port or box to follow the signal · click a value to change it</span>
+    <button class="btn" id="d-sim" type="button" hidden>Simulate ↓</button>
+    <button class="btn" id="d-guide" type="button">Build guide</button>
+  </div>
+  <div class="sheet"><div class="stage">
+    <svg id="sch" viewBox="0 0 1280 760" role="group" aria-label="COMET system schematic. Each block is a button that zooms into its detail sheet and opens its build guide."></svg>
+    <svg id="det" viewBox="0 0 1280 760" role="group" aria-label="Detail schematic of the selected block"></svg>
+  </div></div>
+  <div class="tip" id="tip" hidden></div>
+  <p class="hint">Signals are simulated. Click a block to zoom into its detail sheet; click the title block for the system overview. TP markers sit on channel A; the probe traces below show A solid and B dashed.</p>
+
+  <section class="spice" id="spice" hidden aria-labelledby="sp-title">
+    <div class="sp-top">
+      <div class="sp-ttl"><span class="eyebrow">SPICE · ngspice running in your browser</span><h2 id="sp-title">Simulate this sheet</h2></div>
+      <div class="controls">
+        <button class="btn primary" id="sp-run" type="button">Run simulation</button>
+        <button class="btn" id="sp-reset" type="button">Reset values</button>
+        <a class="btn" id="sp-zip" href="#">LTspice schematic (.zip)</a>
+        <a class="btn" id="sp-cir" href="#">Netlist (.cir)</a>
+      </div>
+    </div>
+    <p class="sp-status" id="sp-status" aria-live="polite"></p>
+    <div class="sp-row"><div class="sp-tabs" id="sp-tabs" role="tablist"></div><div class="sp-params" id="sp-params"></div></div>
+    <div class="sp-cols">
+      <div class="sp-plot" id="sp-plot"></div>
+      <div class="sp-side">
+        <h3>Results</h3>
+        <table class="sp-res" id="sp-res"></table>
+        <p class="sp-note" id="sp-note"></p>
+        <p class="sp-hint">Click any resistor, capacitor or inductor on the sheet to change its value, then run again. The schematic, this simulation and the downloads all come from the same drawing.</p>
+      </div>
+    </div>
+    <details class="sp-net"><summary>Netlist generated from this sheet</summary><div class="sp-netbar"><button class="btn" id="sp-copy" type="button">Copy netlist</button></div><pre id="sp-netlist"></pre></details>
+  </section>
+  <p class="sp-none" id="sp-none" hidden>This sheet has no SPICE model: it is mechanical, software, or logic that runs inside the microcontroller.</p>
+  <div class="sp-pop" id="sp-pop" hidden role="dialog" aria-labelledby="sp-pop-t">
+    <div class="sp-pop-t" id="sp-pop-t"></div>
+    <p class="sp-pop-d" id="sp-pop-d"></p>
+    <div class="sp-pop-r"><input id="sp-in" type="text" autocomplete="off" spellcheck="false" aria-label="New value"><button class="btn primary" id="sp-ok" type="button">Apply</button></div>
+    <div class="sp-pop-r2"><button class="linkbtn" id="sp-def" type="button">Back to design value</button></div>
+    <p class="sp-pop-e" id="sp-err" aria-live="polite"></p>
+  </div>
+
+  <section class="sec">
+    <div class="sech">
+      <div><h2>Rate vs zenith angle</h2>
+      <p class="sub">Simulated coincidence rate for 10 × 10 cm slabs 15 cm apart. Set an angle, simulate a run, and the points build up like a real angle sweep. Each point is the measured rate minus the accidental coincidence rate. The solid curve is the Monte Carlo estimate for this geometry; the dashed one is pure cos²θ scaled to the 0° rate.</p></div>
+      <div class="controls"><button class="btn primary" id="b-ff" type="button">Simulate 10 min at 0°</button><button class="btn" id="b-clr" type="button">Clear runs</button></div>
+    </div>
+    <div class="charts">
+      <figure class="chart"><figcaption><h3>Angular distribution</h3><p><span><i class="ky k1"></i>estimate</span><span><i class="ky k2"></i>cos²θ</span><span><i class="ky k3"></i>corrected ±1σ</span></p></figcaption>
+        <svg id="polar" viewBox="0 0 330 300" role="img" aria-label="Polar plot of coincidence rate against zenith angle"></svg></figure>
+      <figure class="chart"><figcaption><h3>Count-rate history</h3><p><span><i class="ky k4"></i>coincidences per minute</span><span><i class="ky k5"></i>expected at the angle set</span></p></figcaption>
+        <svg id="hist" viewBox="0 0 560 300" role="img" aria-label="Coincidences per minute over simulated time"></svg></figure>
+    </div>
+    <div class="tw"><table class="mini runs"><thead><tr><th>θ</th><th>Live time</th><th>Counts</th><th>Measured /min</th><th>Accidentals</th><th>Corrected /min</th><th>Expected</th><th>Corr. / exp.</th></tr></thead><tbody id="runs"></tbody></table></div>
+    <p class="hint">Corrected = measured − accidentals, with accidentals = (w_A + w_B) · R_A · R_B from the singles of each run. Here 100 ns × 40 Hz × 40 Hz ≈ 0.010 /min, so the correction is tiny unless the singles rates rise.</p>
+  </section>
+
+  <section class="sec">
+    <h2>Probe points</h2>
+    <p class="sub">What a scope would show at each test point for the last event. Time axis 0–200 ns. A noise hit fires channel A alone, so the coincidence gate stays low and no event record is written. Tilting the telescope changes how often events arrive, not the pulse shapes: accepted muons always cross both slabs nearly head-on.</p>
+    <div class="probes" id="probes"></div>
+  </section>
+
+  <section class="sec cols">
+    <div>
+      <h2>Data stream</h2>
+      <p class="sub">The serial lines the MCU sends to the PC logger. One EVT line per coincidence, a STAT line with hardware singles counts.</p>
+      <div class="log" id="log" tabindex="0" aria-label="Simulated MCU serial output"></div>
+    </div>
+    <div>
+      <h2>Build index</h2>
+      <p class="sub">Every block in signal order. Each guide covers purpose, targets, build steps, parts, how to verify it and what tends to go wrong.</p>
+      <div class="index" id="index"></div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Requirements from the COMET project brief (EE493 2026). Part numbers are starting suggestions, not a final BOM.</span>
+    <span>Build guides · level 2 (detailed)</span>
+  </footer>
+</div>
+
+<aside class="drawer" id="drawer" aria-labelledby="d-title" aria-hidden="true">
+  <div class="dh">
+    <div class="eyebrow" id="d-eye"></div>
+    <h2 id="d-title">Build guide</h2>
+    <button class="x" id="d-x" type="button" aria-label="Close build guide">×</button>
+  </div>
+  <div class="db" id="d-body"></div>
+  <div class="df">
+    <button class="btn" id="d-prev" type="button">← Prev</button>
+    <span class="level" id="d-pos"></span>
+    <button class="btn" id="d-next" type="button">Next →</button>
+  </div>
+</aside>

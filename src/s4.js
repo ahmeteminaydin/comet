@@ -1,0 +1,53 @@
+
+SHEETS.bias = {dwg:"COMET-PWR-01", title:"Bias supply · boost and filter", sub:"5 V to about 27 V for both SiPMs. Converter pins are simplified; follow the datasheet application circuit.", draw(){
+  const a = PIN(30, 240, "from USB · +5V_A", "usb"); WR(`M${a} 240H280`, "p"); J(180, 240); J(240, 240);
+  WR("M180 240V260"); C(180, 280, "v", "C27", "4.7 µF", "C27 · input capacitor of the converter"); GND(180, 300);
+  WR("M240 240V290H347V306", "p");
+  L(300, 240, "h", "L1", "see datasheet", "L1 · boost inductor, value from the datasheet application circuit");
+  IC(300, 320, 140, 120, "U12", "LT3482", {t:["VIN","SW"], l:["SHDN̅"], r:["FB","MON"], b:["GND"]}, "U12 · LT3482 · boost converter for photodiode bias with current monitor");
+  WR("M320 240H430", "p"); J(393, 240); WR("M393 240V306", "p");
+  DI(450, 240, "r", "D2", "Schottky ≥ 40 V", "D2 · output Schottky diode (some converters integrate it)", true);
+  WR("M470 240H620", "p"); J(510, 240); J(570, 240); TP(490, 240, "TP7");
+  WR("M510 240V260"); C(510, 280, "v", "C21", "1 µF", "C21 · 1 µF 100 V · output capacitor"); GND(510, 300);
+  WR("M570 240V280"); R(570, 300, "v", "R20", "1 MΩ", "R20 · upper feedback resistor (R1 in the guide)"); WR("M570 320V380"); J(570, 360);
+  R(570, 400, "v", "R21", "≈ 47 kΩ *", "R21 · lower feedback resistor (R2), pick for 27.0 V at mid-scale trim"); GND(570, 420);
+  WR("M454 360H570"); WR("M286 380H260"); NET(256, 380, "+5V (enable)", "end"); GND(370, 454);
+  WR("M570 360H610V460H630"); R(650, 460, "h", "R22", "2 MΩ", "R22 · trim resistor (R3): R20/R22 = 0.5, so 2 V of DAC moves Vout by 1 V");
+  WR("M670 460H1060", "p"); PRIN(1060, 460, "from DAC · VOUTD (trim)", "thr");
+  WR("M454 400H480V500H1060"); POUT(1060, 500, "to MCU · ADC IBIAS_MON", "mcu");
+  FB(640, 240, "h", "FB3", "BLM18", "FB3 · ferrite bead, first filter stage");
+  WR("M660 240H860", "p"); J(700, 240); J(750, 240); J(800, 240);
+  WR("M700 240V260"); C(700, 280, "v", "C22", "1 µF", "C22 · 1 µF 100 V ceramic · LC filter"); GND(700, 300);
+  WR("M750 240V260"); C(750, 280, "v", "C23", "1 µF", "C23 · 1 µF 100 V ceramic · LC filter"); GND(750, 300);
+  WR("M800 240V140H820", "p"); R(840, 140, "h", "R23", "1 kΩ", "R23 · per-channel RC filter and isolation (with C24)"); WR("M860 140H1060", "p"); J(920, 140);
+  WR("M920 140V150"); C(920, 170, "v", "C24", "1 µF 50 V"); GND(920, 190);
+  POUT(1060, 140, "to SiPM A · VBIAS_A", "sipm");
+  R(880, 240, "h", "R24", "1 kΩ", "R24 · per-channel RC filter for SiPM B (with C25)"); WR("M900 240H1060", "p"); J(960, 240);
+  WR("M960 240V250"); C(960, 270, "v", "C25", "1 µF 50 V"); GND(960, 290);
+  POUT(1060, 240, "to SiPM B · VBIAS_B", "sipm");
+  WR("M800 240V268"); R(800, 288, "v", "R25", "200 kΩ", "R25 · monitor divider, top"); WR("M800 308V336"); J(800, 326);
+  R(800, 356, "v", "R26", "10 kΩ", "R26 · monitor divider, bottom: VBIAS_MON = Vbias / 21 ≈ 1.29 V"); GND(800, 376);
+  WR("M800 326H1060"); POUT(1060, 326, "to MCU · ADC VBIAS_MON", "mcu");
+  NOTE(40, 560, 500, ["Vout = Vfb·(1 + R20/R21 + R20/R22) − V_DAC·R20/R22", "With R20/R22 = 0.5, a DAC swing of 0–2 V moves Vout by 1 V.", "* Pick R21 so Vout = 27.0 V with the DAC at mid-scale."]);
+  NOTE(560, 560, 330, ["Ripple < 5 mVp-p at the SiPMs: FB3 + C22/C23,", "then the 1 kΩ / 1 µF RC per channel.", "Use 100 V ceramics; they lose capacitance", "at high DC voltage."]);
+}};
+
+SHEETS.sipm = {dwg:"COMET-CAR-01", title:"SiPM carrier PCB · channel A", sub:"20 × 20 mm board inside the module. SiPM on the top side facing the slab; everything else on the back.", draw(){
+  IC(230, 200, 50, 210, "J2", "JST-GH 6-pin", {r:["1","2","3","4","5","6"], conn:true}, "J2 · 6-pin JST-GH · cable to the baseboard", [255, 176]);
+  [[230,"VBIAS_A · from Bias","bias"],[290,"+3V3 · from USB/LDO","usb"],[320,"SDA · from MCU","mcu"],[350,"SCL · from MCU","mcu"]].forEach(([y, t, go]) => { const a = PIN(30, y, t, go); WR(`M${a} ${y}H230`, "d"); });
+  tx(222, 264, "GND", "pn", "end"); tx(222, 384, "NC", "pn", "end");
+  WR("M294 230H340", "p"); R(360, 230, "h", "R30", "1 kΩ", "R30 · series resistor: filters the bias and limits current in a fault");
+  WR("M380 230H480V270", "p"); J(400, 230); WR("M400 230V250"); C(400, 270, "v", "C30", "100 nF", "C30 · local bias decoupling right at the SiPM cathode"); GND(400, 290);
+  SIPM(480, 290, "SiPM1", "MicroFC-60035", "SiPM1 · onsemi MicroFC-60035 · cathode to bias, anode to the coax");
+  WR("M480 310V420H570", "s");
+  CONN2(580, 420, "J1", "U.FL", "J1 · U.FL coax connector · the anode drives the coax; the 50 Ω termination is on the baseboard (R1)");
+  WR("M590 420H1060", "s d"); POUT(1060, 420, "coax to AFE A (R1, TP1)", "afe");
+  WR("M294 260H320V270"); GND(320, 270);
+  WR("M294 290H340V470H710V486", "p"); J(710, 470);
+  WR("M294 320H320V540H626"); WR("M294 350H300V580H626"); NC(298, 380);
+  IC(640, 500, 140, 120, "U31", "TMP117", {t:["V+"], l:["SDA","SCL"], r:["ADD0","ALERT"], b:["GND"]}, "U31 · TI TMP117 · ±0.1 °C digital temperature sensor, placed right beside the SiPM");
+  WR("M710 470H760V480"); C(760, 500, "v", "C31", "100 nF"); GND(760, 520);
+  WR("M794 540H820V550"); GND(820, 550); WR("M794 580H810"); NC(814, 580); GND(710, 634);
+  NOTE(820, 200, 400, ["SiPM1 sits on the top side, facing the slab;", "everything else is on the back side.", "R30 + C30 clean the bias right at the cathode", "and limit the current if anything goes wrong."]);
+  NOTE(860, 600, 380, ["TMP117 address: ADD0 → GND = 0x48 (channel A).", "On the channel B carrier tie ADD0 to V+ = 0x49."]);
+}};

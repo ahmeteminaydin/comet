@@ -1,0 +1,264 @@
+* COMET - Peak-hold - channel A (extra) - DWG COMET-ANA-02
+* Netlist generated from the COMET system schematic (sheet 10). Analysis: One pulse.
+* Part values as shown on the sheet.
+
+* =====================================================================
+* COMET behavioural SPICE models  (ngspice and LTspice compatible)
+* BAATCH, METU EE493-494. Generated with the COMET system schematic.
+*
+* These are simplified stand-ins for the real parts. They capture the
+* behaviour that matters for COMET (gain, bandwidth, slew, delays,
+* thresholds, timing) and nothing else. Replace them with vendor models
+* when you have them; keep the pin order shown on each .subckt line.
+* =====================================================================
+
+* ---------------------------------------------------------------------
+* Generic op-amp: single-pole, slew-limited, output clamped to the rails.
+* Pins: non-inverting, inverting, output, V+, V-
+* ---------------------------------------------------------------------
+.subckt OPAMP_BEH inp inn out vp vn params: GBW=1G SR=1G
+.param CX={1m/(6.2832*GBW)}
+.param IMAX={SR*CX}
+Bg 0 x I={IMAX}*tanh(1m*(V(inp)-V(inn))/{IMAX}) - 20m*(V(x)-max(V(vn),min(V(vp),V(x))))
+Cx x 0 {CX}
+Rx x 0 10Meg
+Bo o 0 V=max(V(vn)+0.02,min(V(vp)-0.05,V(x)))
+Ro o out 10
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends OPAMP_BEH
+
+* TI LMH6629: 4 GHz gain-bandwidth (decompensated, gain >= 10), 1600 V/us
+.subckt LMH6629_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=4G SR=1.6G
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends LMH6629_BEH
+
+* TI OPA355: 200 MHz gain-bandwidth, 300 V/us
+.subckt OPA355_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends OPA355_BEH
+
+* ---------------------------------------------------------------------
+* TI TLV3501 comparator: ~4.5 ns delay, push-pull rail-to-rail output.
+* No internal hysteresis in this model (add it with external resistors).
+* Pins: non-inverting, inverting, output, V+, V-
+* ---------------------------------------------------------------------
+.subckt TLV3501_BEH inp inn out vp vn
+Bc c 0 V=2*(V(vn)+(V(vp)-V(vn))*0.5*(1+tanh((V(inp)-V(inn))/0.2m)))
+Rs c c1 50
+T1 c1 0 c2 0 Td=3.8n Z0=50
+Rt c2 0 50
+Rf c2 c3 100
+Cf c3 0 7p
+Bo o 0 V=V(c3)
+Ro o out 5
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends TLV3501_BEH
+
+* ---------------------------------------------------------------------
+* 74LVC1G08 2-input AND gate at 3.3 V, ~3 ns delay.  Pins: A, B, Y
+* ---------------------------------------------------------------------
+.subckt AND2_LVC_BEH a b y
+Bc c 0 V=6.6*0.25*(1+tanh((V(a)-1.65)/0.05))*(1+tanh((V(b)-1.65)/0.05))
+Rs c c1 50
+T1 c1 0 c2 0 Td=2.3n Z0=50
+Rt c2 0 50
+Rf c2 c3 100
+Cf c3 0 7p
+Bo o 0 V=V(c3)
+Ro o y 10
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends AND2_LVC_BEH
+
+* ---------------------------------------------------------------------
+* 74LVC1G14 Schmitt-trigger inverter at 3.3 V.
+* Thresholds VT+ = 1.75 V, VT- = 1.05 V, ~3.5 ns delay.  Pins: A, Y
+* ---------------------------------------------------------------------
+.subckt SCHMITT_INV_LVC_BEH a y
+Bs s0 0 V=3.3*0.5*(1+tanh((V(a)-(1.75-0.7*V(st)/3.3))/0.02))
+Rs1 s0 st 1k
+Cs st 0 0.3p
+Bc c 0 V=2*(3.3-V(st))
+Rs c c1 50
+T1 c1 0 c2 0 Td=2.8n Z0=50
+Rt c2 0 50
+Rf c2 c3 100
+Cf c3 0 7p
+Bo o 0 V=V(c3)
+Ro o y 10
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends SCHMITT_INV_LVC_BEH
+
+* ---------------------------------------------------------------------
+* 74LVC1G74 D flip-flop at 3.3 V: rising-edge clock, active-low
+* asynchronous clear and preset, ~3.5 ns clock-to-Q.
+* Pins: D, CLK, Q, /Q, /CLR, /PRE, VCC, GND  (VCC, GND not used inside)
+* ---------------------------------------------------------------------
+.subckt DFF_LVC_BEH d clk q qn clrn pren vcc gnd
+Bm 0 m I=1m*0.5*(1-tanh((V(clk)-1.65)/0.05))*(3.3*0.5*(1+tanh((V(d)-1.65)/0.05))-V(m)) - 5m*0.5*(1-tanh((V(clrn)-1.65)/0.05))*V(m) + 5m*0.5*(1-tanh((V(pren)-1.65)/0.05))*(3.3-V(m))
+Cm m 0 0.5p
+Rm m 0 1G
+Bs 0 s I=1m*0.5*(1+tanh((V(clk)-1.65)/0.05))*(V(m)-V(s)) - 5m*0.5*(1-tanh((V(clrn)-1.65)/0.05))*V(s) + 5m*0.5*(1-tanh((V(pren)-1.65)/0.05))*(3.3-V(s))
+Cs s 0 0.5p
+Rs s 0 1G
+Bc c 0 V=6.6*0.5*(1+tanh((V(s)-1.65)/0.05))
+Rq c c1 50
+T1 c1 0 c2 0 Td=2.8n Z0=50
+Rt c2 0 50
+Rf c2 c3 100
+Cf c3 0 7p
+Bo o 0 V=V(c3)
+Ro o q 10
+Bcn cn 0 V=6.6-V(c)
+Rqn cn cn1 50
+T2 cn1 0 cn2 0 Td=2.8n Z0=50
+Rtn cn2 0 50
+Rfn cn2 cn3 100
+Cfn cn3 0 7p
+Bon on 0 V=V(cn3)
+Ron on qn 10
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends DFF_LVC_BEH
+
+* ---------------------------------------------------------------------
+* 74LVC1G123 monostable at 3.3 V (idealised).
+* A rising edge on B with /A low starts a pulse. The timing capacitor
+* sits between CEXT and REXT/CEXT, the timing resistor from REXT/CEXT
+* to VCC. Width = Rext*Cext here; the real part adds an offset at small
+* Cext, so trim on the bench.
+* Pins: /A, B, /CLR, Q, /Q, VCC, CEXT, REXT/CEXT, GND
+* ---------------------------------------------------------------------
+.subckt MONO123_LVC_BEH an b clrn q qn vcc cext rext gnd
+Rd b bd 2k
+Cd bd 0 1p
+Btr tr 0 V=3.3*0.5*(1+tanh((V(b)-1.65)/0.05))*0.5*(1-tanh((V(bd)-1.65)/0.05))*0.5*(1-tanh((V(an)-1.65)/0.05))*0.5*(1+tanh((V(clrn)-1.65)/0.05))
+Rce cext 0 0.1
+S1 rext 0 tr 0 MONO_DIS
+.model MONO_DIS SW(Ron=5 Roff=1G Vt=1.65 Vh=0)
+Bl 0 st I=2m*(0.5*(1+tanh((V(tr)-1.65)/0.05))*(3.3-V(st)) - 0.5*(1-tanh((V(tr)-1.65)/0.05))*min(1,0.5*(1+tanh((V(rext)-2.086)/0.02))+0.5*(1-tanh((V(clrn)-1.65)/0.05)))*V(st))
+Cl st 0 0.5p
+Rl st 0 1G
+Bc c 0 V=6.6*0.5*(1+tanh((V(st)-1.65)/0.05))
+Rq c c1 50
+T1 c1 0 c2 0 Td=3.3n Z0=50
+Rt c2 0 50
+Rf c2 c3 100
+Cf c3 0 7p
+Bo o 0 V=V(c3)
+Ro o q 10
+Bcn cn 0 V=6.6-V(c)
+Rqn cn cn1 50
+T2 cn1 0 cn2 0 Td=3.3n Z0=50
+Rtn cn2 0 50
+Rfn cn2 cn3 100
+Cfn cn3 0 7p
+Bon on 0 V=V(cn3)
+Ron on qn 10
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends MONO123_LVC_BEH
+
+* ---------------------------------------------------------------------
+* onsemi MicroFC-60035 SiPM (6 mm, 35 um cells), microcell model.
+* Fired and passive cells are lumped. Approximate parameters chosen to
+* match ~3e6 gain at 2.5 V overvoltage, ~80 ns recovery, ~3.4 nF.
+* Light: NPE photoelectrons arriving at T0 with plastic-scintillator
+* timing (0.9 ns rise, 2.1 ns decay). Gain follows the overvoltage
+* V(K,A) - Vbr(T), with Vbr(T) = 24.45 V + 21.5 mV/C * (T - 21 C).
+* Pins: cathode, anode
+* ---------------------------------------------------------------------
+.subckt MICROFC60035_BEH k a params: NPE=140 T0=20n TEMP=21
+.param NCELL=18980 CD=175f CQ=17f RQ=430k CG=50p
+.param NPAS={NCELL-NPE}
+Rqp k dp {RQ/NPAS}
+Cqp k dp {CQ*NPAS}
+Cdp dp a {CD*NPAS}
+Rqf k df {RQ/NPE}
+Cqf k df {CQ*NPE}
+Cdf df a {CD*NPE}
+Bav df a I={NPE*(CD+CQ)}*max(0,V(k,a)-(24.45+21.5m*({TEMP}-21)))*(exp(-max(time-{T0},0)/2.1n)-exp(-max(time-{T0},0)/0.9n))/1.2n
+Cg k a {CG}
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends MICROFC60035_BEH
+
+* Schottky diode, approximate BAT54
+.model BAT54 D(Is=2e-7 N=1.04 Rs=1.6 Cjo=9p M=0.33 Vj=0.35 Bv=30 Ibv=1e-5 Tt=5n)
+
+* TI TS5A3159 analog switch: closes when CTL > 1.65 V.  Pins: A, B, CTL
+.subckt TS5A3159_BEH a b ctl
+S1 a b ctl 0 TS5A_SW
+.model TS5A_SW SW(Ron=1 Roff=1G Vt=1.65 Vh=0.1)
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends TS5A3159_BEH
+
+* Ferrite bead (BLM18 class): inductive at low frequency, resistive at
+* high frequency.  Pins: A, B
+.subckt BEAD_BEH a b params: L=1u
+L1 a m {L}
+R1 m b 0.15
+RP a b 470
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends BEAD_BEH
+
+* ---------------------------------------------------------------------
+* Microchip MCP4728 quad 12-bit DAC (outputs only; I2C not modelled).
+* Each output steps from code *0 to code * at TSTEP (0.5 mV per code).
+* Pins: VDD, SCL, SDA, /LDAC, VOUTA, VOUTB, VOUTC, VOUTD, VSS
+* ---------------------------------------------------------------------
+.subckt MCP4728_BEH vdd scl sda ldacn va vb vc vd vss params: CA0=0 CA=840 CB0=0 CB=840 CC0=0 CC=0 CD0=0 CD=2048 TSTEP=10u
+Bia ia 0 V=0.5m*({CA0}+({CA}-{CA0})*u(time-{TSTEP}))
+Ria ia sa 1.5k
+Csa sa 0 1n
+Boa oa 0 V=V(sa)
+Roa oa va 1
+Bib ib 0 V=0.5m*({CB0}+({CB}-{CB0})*u(time-{TSTEP}))
+Rib ib sb 1.5k
+Csb sb 0 1n
+Bob ob 0 V=V(sb)
+Rob ob vb 1
+Bic ic 0 V=0.5m*({CC0}+({CC}-{CC0})*u(time-{TSTEP}))
+Ric ic sc 1.5k
+Csc sc 0 1n
+Boc oc 0 V=V(sc)
+Roc oc vc 1
+Bid id 0 V=0.5m*({CD0}+({CD}-{CD0})*u(time-{TSTEP}))
+Rid id sd 1.5k
+Csd sd 0 1n
+Bod od 0 V=V(sd)
+Rod od vd 1
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.ends MCP4728_BEH
+
+* ---- stimulus parameters ----
+.param AMP=60m
+
+* ---- circuit (from the sheet) ----
+XU10 from_afe_a_shaper_u2 n1 n2 p5v_a 0 OPA355_BEH
+D1 n2 n1 BAT54
+C20 n1 0 470p
+R19 n1 0 43k
+XSW1 n1 0 from_mcu_peak_rst TS5A3159_BEH
+XU11 n1 to_mcu_adc_peak_a to_mcu_adc_peak_a p5v_a 0 OPA355_BEH
+
+* ---- test bench ----
+V_P5V_A p5v_a 0 5
+B_SHAPED from_afe_a_shaper_u2 0 V={AMP}*max(time-200n,0)/100n*exp(1-max(time-200n,0)/100n)
+V_RST from_mcu_peak_rst 0 PULSE(0 3.3 2.5u 5n 5n 200n 10u)
+C_ADC to_mcu_adc_peak_a 0 10p
+
+.tran 2n 3.5u
+* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
+* LTspice: open this file and press Run
+.end
