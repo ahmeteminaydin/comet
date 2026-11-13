@@ -1,7 +1,9 @@
 """Export SPICE assets for every simulated sheet, and precompute default results."""
-import sys, os, json, zipfile, io, time
+import sys, os, re, json, zipfile, io, time
 from playwright.sync_api import sync_playwright
 REPO, COMET = sys.argv[1], sys.argv[2]
+PORT = sys.argv[3] if len(sys.argv) > 3 else "8790"                       # local server for the built index.html
+VAL = sys.argv[4] if len(sys.argv) > 4 else os.path.join(COMET, "..", "..", "export")   # unpacked copies for validation
 P = lambda *a: print(*a, flush=True)
 README = """COMET - {title} (DWG {dwg})
 LTspice schematic generated from the COMET system schematic
@@ -25,14 +27,14 @@ with sync_playwright() as pw:
     b = pw.chromium.launch(executable_path="/usr/bin/google-chrome", args=["--no-sandbox"])
     pg = b.new_page(viewport={"width":1300,"height":900}); errs = []
     pg.on("pageerror", lambda e: errs.append(str(e)))
-    pg.goto("http://127.0.0.1:8766/index.html", wait_until="domcontentloaded"); pg.wait_for_timeout(400)
+    pg.goto(f"http://127.0.0.1:{PORT}/index.html", wait_until="domcontentloaded"); pg.wait_for_timeout(400)
     ids = pg.evaluate("Object.keys(SIMCFG)")
     pre = {}
     pg.evaluate("spiceEngine()")
     for id in ids:
         r = pg.evaluate(f"(() => {{ const x = spiceAsc('{id}'); return {{asc:x.asc, files:x.files, lib:x.lib, cir:x.cir, title:SHEETS['{id}'].title, dwg:SHEETS['{id}'].dwg, excl:SIMCFG['{id}'].exclude||[], why:SIMCFG['{id}'].excludeWhy||''}}; }})()")
         name = f"COMET_{id.upper()}"; d = os.path.join(REPO, "sim", id); os.makedirs(d, exist_ok=True)
-        cir = r["cir"].replace("\n.end", "\n* ngspice: ngspice " + name + ".cir, then type run and plot v(<net>)\n* LTspice: open this file and press Run\n.end")
+        cir = re.sub(r"\n\.end\s*$", lambda m: "\n* ngspice: ngspice " + name + ".cir, then type run and plot v(<net>)\n* LTspice: open this file and press Run\n.end\n", r["cir"])
         open(os.path.join(d, name + ".cir"), "w", newline="\n").write(cir)
         extra = (f"\nNot simulated: {', '.join(r['excl'])} ({r['why']}).\n") if r["excl"] else ""
         zb = io.BytesIO()
@@ -43,7 +45,7 @@ with sync_playwright() as pw:
             z.writestr("README.txt", README.format(title=r["title"], dwg=r["dwg"], name=name, extra=extra).replace("\n", "\r\n"))
         open(os.path.join(d, name + "_LTspice.zip"), "wb").write(zb.getvalue())
         # unpacked copy for validation
-        vd = os.path.join(COMET, "..", "export", id); os.makedirs(vd, exist_ok=True)
+        vd = os.path.join(VAL, id); os.makedirs(vd, exist_ok=True)
         with zipfile.ZipFile(io.BytesIO(zb.getvalue())) as z: z.extractall(vd)
         open(os.path.join(vd, name + ".cir"), "w").write(cir)
         # precomputed default results

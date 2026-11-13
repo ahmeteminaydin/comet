@@ -3,16 +3,16 @@ SHEETS.temp = {dwg:"COMET-PWR-02", title:"Temperature compensation loop", sub:"C
   BOX(60, 140, 220, 90, "SiPM A + SiPM B", ["Vbr rises ≈ 21.5 mV/°C", "with temperature"], "sipm");
   BOX(60, 330, 220, 90, "TMP117 ×2 on carriers", ["0x48 (A), 0x49 (B)", "±0.1 °C over I²C"], "sipm");
   ARW("M170 230V326", "d"); tx(180, 282, "heat (same carrier)", "pn");
-  BOX(400, 280, 420, 200, "MCU firmware · every 1 s", ["1  T = (T_A + T_B) / 2", "2  Vset = Vbr(T₀) + k·(T − T₀) + Vov", "3  code = (Vset − a) / b   (trim calibration)", "4  limit the change to ≤ 10 mV per step", "5  write code → MCP4728 channel D", "6  read VBIAS_MON, correct if |error| > 5 mV", "7  log T and Vbias in every EVT/STAT line"], "mcu");
+  BOX(400, 280, 420, 200, "MCU firmware · every 1 s", ["1  T = (T_A + T_B) / 2", "2  Vset = Vbr(T₀) + k·(T − T₀) + Vov", "3  code = (Vset − a) / b   (calibration, b > 0)", "4  limit the change to ≤ 10 mV per step", "5  write code → MCP4728 channel D", "6  read VBIAS_MON, correct if |error| > 5 mV", "7  log T and Vbias in every EVT/STAT line"], "mcu");
   ARW("M280 375H396"); tx(290, 366, "I²C read", "pn");
   BOX(940, 300, 260, 80, "MCP4728 · VOUTD", ["0–2.048 V in 0.5 mV steps"], "thr");
   ARW("M820 340H936"); tx(830, 331, "I²C write", "pn");
-  BOX(940, 140, 260, 90, "Bias supply (LT3482)", ["R22 injects current into FB", "Vout ≈ 27 V ± 1 V"], "bias");
-  ARW("M1070 300V234"); tx(1080, 270, "V_DAC via R22", "pn");
+  BOX(940, 140, 260, 90, "Bias supply (LT3482)", ["VOUT2 = 34.1 × V_CTRL", "SiPM = VOUT2 − monitor drop"], "bias");
+  ARW("M1070 300V234"); tx(1080, 270, "CTRL = VOUTD / 2", "pn");
   ARW("M940 185H284", "p"); tx(610, 176, "VBIAS (filtered, per-channel RC)", "pn", "middle");
-  ARW("M980 230V258H760V276"); tx(770, 252, "ADC: VBIAS_MON = Vbias / 21", "pn");
+  ARW("M980 230V258H760V276"); tx(770, 252, "ADC: VBIAS_MON = Vbias / 22.4", "pn");
   NOTE(60, 520, 520, ["Example: k = 21.5 mV/°C, Vbr(21 °C) = 24.45 V, Vov = 2.5 V.", "At 30 °C: Vset = 24.45 + 0.0215 × 9 + 2.5 = 27.14 V.", "Without compensation the overvoltage would fall to 2.31 V,", "which is about 8 % less gain."]);
-  NOTE(640, 520, 460, ["Calibrate once: set about 5 DAC codes, measure Vbias", "with a multimeter, fit Vbias = a + b·code (b < 0).", "Commands COMP 1 / COMP 0 switch the loop on and off."]);
+  NOTE(640, 520, 460, ["Calibrate once: set about 5 DAC codes, measure the SiPM", "bias with a multimeter, fit Vbias = a + b·code (b ≈ 8.5 mV).", "Step 6 also removes the current monitor's voltage drop.", "Commands COMP 1 / COMP 0 switch the loop on and off."]);
 }};
 
 SHEETS.muon = {dwg:"COMET-PHY-01", title:"Cosmic muons: the input signal", sub:"Where the muons come from, why the rate depends on θ, and how one muon becomes a voltage pulse.", draw(){

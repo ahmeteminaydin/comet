@@ -62,7 +62,7 @@ for t in dirs: L.append((".include " + os.path.abspath(os.path.join(d, t.split()
 sitetok = set(re.findall(r"[\w.]+", open(os.path.join(d, base + ".cir")).read().split(".subckt")[0] + open(os.path.join(d, base + ".cir")).read().split(".ends")[-1]))
 flagnets = sorted({n for _, _, n in flags if n != "0" and not n.startswith("p3v3") and not n.startswith("p5v") and n in sitetok})
 open(os.path.join(d, "_rebuilt.cir"), "w").write("\n".join(L + [".control", "set wr_singlescale", "set wr_vecnames", "run", "wrdata _a.dat " + " ".join(f"v({n})" for n in flagnets), ".endc", ".end"]))
-cir = open(os.path.join(d, base + ".cir")).read().replace("\n.end", "\n.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata _b.dat " + " ".join(f"v({n})" for n in flagnets) + "\n.endc\n.end")
+cir = re.sub(r"\n\.end\s*$", lambda m: "\n.control\nset wr_singlescale\nset wr_vecnames\nrun\nwrdata _b.dat " + " ".join(f"v({n})" for n in flagnets) + "\n.endc\n.end\n", open(os.path.join(d, base + ".cir")).read())
 open(os.path.join(d, "_site.cir"), "w").write(cir)
 for f in ["_rebuilt.cir", "_site.cir"]: subprocess.run(["timeout", "120", "ngspice", "-b", f], cwd=d, capture_output=True)
 def load(f):

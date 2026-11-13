@@ -8,6 +8,7 @@ Interactive system schematic for **COMET** (Compact Photonics-Enabled Cosmic Muo
 - Click any block to zoom into its detail sheet (component-level schematic or drawing) and open its build guide.
 - The eight circuit sheets run **SPICE in the browser** (ngspice compiled to WebAssembly). Click a part value on the sheet to change it, then press Run simulation.
 - Each circuit sheet has a downloadable **LTspice schematic** and **ngspice netlist** in [`sim/`](sim/), generated from the same drawing as the site.
+- A **design review** of every sheet and simulation (errors fixed, simulation problems fixed, open considerations) is on the site and in [`REVIEW.md`](REVIEW.md).
 
 ## Layout
 
@@ -15,6 +16,7 @@ Interactive system schematic for **COMET** (Compact Photonics-Enabled Cosmic Muo
 |---|---|
 | `index.html` | The site (built from `src/`) |
 | `sim/` | LTspice schematics and netlists per circuit sheet |
+| `REVIEW.md` | Design review log (generated from `src/review.json`) |
 | `vendor/` | The ngspice WebAssembly engine (MIT / BSD-3-Clause) |
 | `src/` | Page sources; `python3 src/build.py` rebuilds `index.html` |
 | `tools/` | Scripts that export `sim/` and check the LTspice files against the site netlists |

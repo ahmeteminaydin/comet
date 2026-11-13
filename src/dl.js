@@ -56,7 +56,7 @@ function grp(tip, cls){ const g = ee("g", cls ? {class:cls} : {}); if (tip) g.se
 function tx(x, y, t, cls = "rv", anc, p){ const a = {x, y, class:cls}; if (anc) a["text-anchor"] = anc; return ee("text", a, p, t); }
 function WR(d, cls = ""){ if (REC && !/[CcAaQqSsTt]/.test(d)) recPath(d); return ee("path", {d, class:"dw " + cls}); }
 function DL(d, cls = ""){ return ee("path", {d, class:"dw " + cls}); }          // drawn line that is never a wire (timing diagrams)
-function J(x, y){ ee("circle", {cx:x, cy:y, r:3.3, class:"jd"}); }
+function J(x, y){ if (REC) REC.junctions.push([x, y]); ee("circle", {cx:x, cy:y, r:3.3, class:"jd"}); }
 function GND(x, y){ if (REC) REC.gnd.push([x, y]); ee("path", {d:`M${x} ${y}v9M${x-9} ${y+9}h18M${x-6} ${y+13}h12M${x-3} ${y+17}h6`, class:"cl"}); }
 function PWR(x, y, n){ if (REC) REC.pwr.push({pt:[x, y], name:n}); ee("path", {d:`M${x} ${y}v-10M${x-8} ${y-10}h16`, class:"cl pw"}); tx(x, y-15, n, "rf pwt", "middle"); }
 function NET(x, y, n, anc){ if (REC) REC.labels.push({pt:[x, y], name:n, anc}); tx(x, y-5, n, "pn halo", anc); }
@@ -65,7 +65,8 @@ const ROT = {h:0, r:0, v:90, d:90, l:180, u:270};
 function two(x, y, o, ref, val, tip, body, kind, extra){
   const a = ROT[o] || 0;
   let shown = val, vcls = "rv", t = tip || `${ref} · ${val}`, edit = false;
-  if (SV && SV.vals[ref] != null){
+  if (SV && SV.inert && SV.inert[ref]) t += ` · not adjustable in the simulation: ${SV.inert[ref]}`;
+  else if (SV && SV.vals[ref] != null){
     edit = true;
     const v = siNum(SV.vals[ref]), d = siNum(SV.def[ref]);
     const changed = Math.abs(v - d) > Math.abs(d)*1e-9;
@@ -97,14 +98,16 @@ function SIPM(x, y, ref, part, tip){            // photodiode, cathode at top (y
   ee("path",{d:`M${x+34} ${y-30}l-16 12m0 0l7-1m-7 1l3-6M${x+44} ${y-18}l-16 12m0 0l7-1m-7 1l3-6`,class:"cl ph"},g);
   tx(x+16, y+4, ref, "rf", null, g); tx(x+16, y+18, part, "rv", null, g);
 }
-function OPA(x, y, ref, part, tip, cmp){
+function OPA(x, y, ref, part, tip, cmp, shdn){
   const P = {inp:[x-44,y-12], inn:[x-44,y+12], out:[x+44,y], vp:[x,y-28], vn:[x,y+28]};
+  if (shdn) P.shdn = [x-16, y+38];
   if (REC) REC.parts.push({kind:"OPA", ref, part, cmp:!!cmp, x, y, pins:P});
   const g = grp(tip || `${ref} · ${part}`);
   ee("path",{d:`M${x-30} ${y-30}L${x+30} ${y}L${x-30} ${y+30}Z`,class:"ic"},g);
   ee("path",{d:`M${x-44} ${y-12}h14M${x-44} ${y+12}h14M${x+30} ${y}h14M${x} ${y-15}v-13M${x} ${y+15}v13`,class:"cl"},g);
   tx(x-26, y-8, "+", "pn", null, g); tx(x-26, y+16, "−", "pn", null, g);
   if (cmp) ee("path",{d:`M${x-12} ${y+5}h7v-10h7`,class:"cl"},g);
+  if (shdn){ ee("path",{d:`M${x-16} ${y+22}v16`,class:"cl"},g); tx(x-21, y+32, "SHDN", "pn", "end", g); }
   tx(x+10, y-24, ref, "rf", null, g); tx(x+10, y+40, part, "rv", null, g);
   return {p:P.inp, n:P.inn, o:P.out, vp:P.vp, vn:P.vn};
 }
@@ -144,7 +147,7 @@ function SWC(x, y, ref, part, tip){             // analog switch: A at top, B at
   const g = grp(tip || `${ref} · ${part}`);
   ee("path", {d:`M${x} ${y-29}V${y-7}M${x} ${y+21}V${y+29}M${x} ${y-4}L${x+13} ${y+19}`, class:"cl"}, g);
   ee("circle", {cx:x, cy:y-5, r:2.5, class:"ic"}, g); ee("circle", {cx:x, cy:y+21, r:2.5, class:"ic"}, g);
-  tx(x+22, y+1, ref, "rf", null, g); tx(x+22, y+15, part, "rv", null, g);
+  tx(x+22, y-13, ref, "rf", null, g); tx(x+22, y+1, part, "rv", null, g);   // above the control line at y+9
   return P;
 }
 function CONN2(x, y, ref, label, tip){          // coax connector drawn as a circle, passes the signal straight through
@@ -174,6 +177,8 @@ function DIM(x1, y1, x2, y2, label, dx = 0, dy = -6){ ee("path", {d:`M${x1} ${y1
 function CALL(n, x, y, x2, y2){ ee("path", {d:`M${x} ${y}L${x2} ${y2}`, class:"lead"}); ee("circle", {cx:x, cy:y, r:10, class:"cll"}); tx(x, y+4, String(n), "rf", "middle"); }
 function heading(t, s){ tx(28, 46, t, "h1"); if (s) tx(28, 68, s, "h2"); }
 
+// sheets changed by the design review (see review.json); the others are still revision A
+const SHEET_REV = Object.fromEntries(["bias", "temp", "afe", "peak", "thr", "comp", "stretch", "coinc", "mcu", "usb"].map(id => [id, ["B", "2026-11-13"]]));
 function drawSheet(id, target){
   const sv = (typeof spiceValues === "function") ? spiceValues(id) : null;   // may draw the sheet off-screen first
   const sh = SHEETS[id], root = target || DETS, keepDS = DS, keepSV = SV; root.innerHTML = "";
@@ -187,8 +192,9 @@ function drawSheet(id, target){
   const n = ORDER.indexOf(id) + 1;
   ee("rect", {x:900, y:676, width:364, height:68, class:"tb"});
   ["M900 700H1264","M900 722H1264","M1120 700V744"].forEach(d => ee("path", {d, class:"tbl"}));
-  tx(910, 693, sh.title.toUpperCase(), "rf"); tx(910, 716, `DWG ${sh.dwg} · REV A`, "rv"); tx(1130, 716, `SHEET ${n} / ${ORDER.length}`, "rv");
-  tx(910, 738, "BAATCH · EE493–494", "rv"); tx(1130, 738, "2026-11-03", "rv");
+  const [rev, date] = SHEET_REV[id] || ["A", "2026-11-03"];
+  tx(910, 693, sh.title.toUpperCase(), "rf"); tx(910, 716, `DWG ${sh.dwg} · REV ${rev}`, "rv"); tx(1130, 716, `SHEET ${n} / ${ORDER.length}`, "rv");
+  tx(910, 738, "BAATCH · EE493–494", "rv"); tx(1130, 738, date, "rv");
   heading(sh.title, sh.sub);
   sh.draw();
   DS = keepDS; SV = keepSV;

@@ -75,7 +75,7 @@ function box(id, k, x, y, w, h, label, sub){
   return g;
 }
 [
- ["afe","ana",400,180,120,60,"AFE A","LMH6629 · ×21"],["afe","ana",400,420,120,60,"AFE B","LMH6629 · ×21"],
+ ["afe","ana",400,180,120,60,"AFE A","OPA356 · ×21"],["afe","ana",400,420,120,60,"AFE B","OPA356 · ×21"],
  ["comp","dig",580,180,120,60,"COMPARATOR A","TLV3501 · 4.5 ns"],["comp","dig",580,420,120,60,"COMPARATOR B","TLV3501 · 4.5 ns"],
  ["stretch","dig",760,180,120,60,"STRETCHER A","one-shot · 50 ns"],["stretch","dig",760,420,120,60,"STRETCHER B","one-shot · 50 ns"],
  ["thr","ana",580,300,120,60,"THRESHOLD","MCP4728 · 12-bit"],["bias","pwr",400,300,120,60,"BIAS SUPPLY","5 V→27 V, <5 mVpp"],

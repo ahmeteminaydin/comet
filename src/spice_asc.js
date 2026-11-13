@@ -59,10 +59,11 @@ function spiceAsc(id){
       win = [[32, -8], [32, 24]]; desc = "SiPM onsemi MicroFC-60035 (model)";
     } else if (p.kind === "OPA"){
       const def = PARTS[p.part]; value = def ? def.sub : p.part;
-      pins = ["inp", "inn", "out", "vp", "vn"].map(n => [n.toUpperCase(), ...rel(p.pins[n])]);
+      pins = ["inp", "inn", "out", "vp", "vn"].concat(p.pins.shdn ? ["shdn"] : []).map(n => [n.toUpperCase(), ...rel(p.pins[n])]);
       prims = [...line([[-60, -60], [60, 0], [-60, 60], [-60, -60]]), ...line([[-88, -24], [-60, -24]]), ...line([[-88, 24], [-60, 24]]), ...line([[60, 0], [88, 0]]),
                ...line([[0, -30], [0, -56]]), ...line([[0, 30], [0, 56]]), txt(-52, -24, "+", "Left", 2), txt(-52, 24, "-", "Left", 2)];
       if (p.cmp) prims.push(...line([[-24, 10], [-10, 10], [-10, -10], [4, -10]]));
+      if (p.pins.shdn) prims.push(...line([[-32, 44], [-32, 76]]), txt(-42, 64, "SHDN", "Right", 0));
       win = [[20, -56], [20, 72]];
     } else if (p.kind === "AND"){
       value = PARTS[p.part].sub; pins = [["A", ...rel(p.pins.a)], ["B", ...rel(p.pins.b)], ["Y", ...rel(p.pins.y)]];
@@ -107,7 +108,7 @@ function spiceAsc(id){
 
   // split wires so every connection is at a wire end (LTspice connects ends only)
   const pts = new Map(); const addP = q => pts.set(q[0] + "," + q[1], q);
-  wires.forEach(w => { addP([w[0], w[1]]); addP([w[2], w[3]]); }); flags.forEach(f => addP([f[0], f[1]]));
+  wires.forEach(w => { addP([w[0], w[1]]); addP([w[2], w[3]]); }); flags.forEach(f => addP([f[0], f[1]])); (rec.junctions || []).forEach(q => addP(sc(q)));
   rec.parts.forEach(p => { if (excl.has(p.ref)) return; (Array.isArray(p.pins) ? p.pins : Object.values(p.pins)).forEach(q => addP(sc(q))); });
   const split = [];
   wires.forEach(([x1, y1, x2, y2]) => {

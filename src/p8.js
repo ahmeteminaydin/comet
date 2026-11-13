@@ -4,6 +4,12 @@ const dr = $("#drawer"); dr.inert = true; let cur = null;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function specHtml(s){ const m = s.match(/^(.*?)\s*\((spec|extra feature)\)\s*$/);
   return m ? esc(m[1]) + `<span class="chip">${m[2] === "spec" ? "spec" : "extra"}</span>` : esc(s); }
+const REV_KIND = {error:["Fixed error", "Fix"], sim:["Simulation fixed", "Fix"], note:["Open", "To do"]};
+const revName = id => G[id] ? G[id].name.replace(/\s*\([^)]*\)|\s*×2|:.*$/g, "") : id;
+function revCard(r, link){
+  return `<div class="rvc rv-${r.kind}"><div class="rvh"><span class="rvk">${REV_KIND[r.kind][0]}</span>${link ? `<button type="button" class="rvs" data-open="${r.sheet}">${esc(revName(r.sheet))} →</button>` : ""}</div>`
+    + `<b>${esc(r.title)}</b><p>${esc(r.text)}</p><p class="rvf"><span>${REV_KIND[r.kind][1]}:</span> ${esc(r.fix)}</p></div>`;
+}
 function openGuide(id, focus = true){
   const g = G[id]; if (!g) return; cur = id;
   dr.style.setProperty("--dc", `var(--c-${g.k})`);
@@ -20,6 +26,8 @@ function openGuide(id, focus = true){
   h += `<h4>Suggested parts</h4><div class="tw"><table class="parts"><tbody>${g.parts.map(r => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}<span class="n">${esc(r[2])}</span></td></tr>`).join("")}</tbody></table></div>`;
   h += `<h4>Verify it</h4><ul class="chk">${g.test.map(s => `<li>${tl(s)}</li>`).join("")}</ul>`;
   h += `<h4>Watch out for</h4><ul class="warn">${g.pitfalls.map(s => `<li>${tl(s)}</li>`).join("")}</ul>`;
+  const rv = REVIEW.items.filter(r => r.sheet === id);
+  if (rv.length) h += `<h4>Design review (${esc(REVIEW.date)})</h4><div class="rvd">${rv.map(r => revCard(r, false)).join("")}</div>`;
   if (g.terms) h += `<h4>Terms used here</h4><dl class="terms">${g.terms.map(([t, d]) => `<dt>${esc(t)}</dt><dd>${esc(d)}</dd>`).join("")}</dl>`;
   const body = $("#d-body"); body.innerHTML = h; body.scrollTop = 0;
   if (g.tool) TOOLS[g.tool]($("#tool"));
@@ -129,5 +137,10 @@ const TOOLS = {
 /* ---------- legend, index, initial state ---------- */
 $("#legend").innerHTML = DOMAINS.map(([k, n]) => `<span style="color:var(--c-${k})"><i></i><b>${n}</b></span>`).join("");
 $("#index").innerHTML = GROUPS.map(([n, k, ids]) => `<div class="grp"><h3 style="color:var(--c-${k})"><i></i><span style="color:var(--muted)">${n}</span></h3><ul>${ids.map(id => `<li><button type="button" data-open="${id}">${esc(G[id].name)}</button></li>`).join("")}</ul></div>`).join("");
+$("#rv-intro").textContent = `Last review ${REVIEW.date}. ${REVIEW.intro}`;
+$("#rv-list").innerHTML = [["error", "Errors found and fixed"], ["sim", "Simulation problems fixed"], ["note", "Open considerations"]].map(([k, n]) => {
+  const it = REVIEW.items.filter(r => r.kind === k);
+  return `<div class="rvg"><h3 class="rv-${k}"><i></i>${n} <span>${it.length}</span></h3><div class="rvgrid">${it.map(r => revCard(r, true)).join("")}</div></div>`; }).join("");
+$("#rv-list").addEventListener("click", e => { const b = e.target.closest("[data-open]"); if (b){ show(b.dataset.open); document.querySelector(".sheet").scrollIntoView({block:"start", behavior: RM() ? "auto" : "smooth"}); } });
 $("#index").addEventListener("click", e => { const b = e.target.closest("[data-open]"); if (b){ show(b.dataset.open); document.querySelector(".sheet").scrollIntoView({block:"start", behavior: RM() ? "auto" : "smooth"}); } });
 logLine("# EVT,seq,t_us,A,B,C,hA,hB,T_C,Vbias   STAT,t_us,counts   (simulated)", "c");

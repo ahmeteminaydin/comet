@@ -13,42 +13,53 @@
 * =====================================================================
 
 * ---------------------------------------------------------------------
-* Generic op-amp: single-pole, slew-limited, output clamped to the rails.
+* Generic op-amp: single-pole, slew-limited.
+*   VSW  = how close the output can swing to each rail (datasheet "output swing from rail")
+*   VCMH = input common-mode headroom below V+ (inputs above V(vp)-VCMH are clipped there)
+*   IB   = input bias current flowing out of each input
 * Pins: non-inverting, inverting, output, V+, V-
 * ---------------------------------------------------------------------
-.subckt OPAMP_BEH inp inn out vp vn params: GBW=1G SR=1G
+.subckt OPAMP_BEH inp inn out vp vn params: GBW=1G SR=1G VSW=0.05 VCMH=0 IB=0
 .param CX={1m/(6.2832*GBW)}
 .param IMAX={SR*CX}
-Bg 0 x I={IMAX}*tanh(1m*(V(inp)-V(inn))/{IMAX}) - 20m*(V(x)-max(V(vn),min(V(vp),V(x))))
+Bip inp 0 I={IB}
+Bin inn 0 I={IB}
+Bg 0 x I={IMAX}*tanh(1m*(min(V(inp),V(vp)-{VCMH})-min(V(inn),V(vp)-{VCMH}))/{IMAX}) - 20m*(V(x)-max(V(vn),min(V(vp),V(x))))
 Cx x 0 {CX}
 Rx x 0 10Meg
-Bo o 0 V=max(V(vn)+0.02,min(V(vp)-0.05,V(x)))
+Bo o 0 V=max(V(vn)+{VSW},min(V(vp)-{VSW},V(x)))
 Ro o out 10
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends OPAMP_BEH
 
-* TI LMH6629: 4 GHz gain-bandwidth (decompensated, gain >= 10), 1600 V/us
-.subckt LMH6629_BEH inp inn out vp vn
-X1 inp inn out vp vn OPAMP_BEH GBW=4G SR=1.6G
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
-.ends LMH6629_BEH
-
-* TI OPA355: 200 MHz gain-bandwidth, 300 V/us
+* TI OPA356 (and OPA355, the version with an enable pin): 200 MHz GBW,
+* unity-gain stable, 300 V/us, output within ~0.1 V of the rails (1 kOhm load),
+* input common mode from V- to (V+) - 1.5 V, input bias current a few pA.
+.subckt OPA356_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg VSW=0.1 VCMH=1.5
+.ends OPA356_BEH
 .subckt OPA355_BEH inp inn out vp vn
-X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
+X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg VSW=0.1 VCMH=1.5
 .ends OPA355_BEH
 
+* TI LMH6629: 4 GHz GBW, stable only at gain >= 10 (decompensated), 1600 V/us.
+* Its output only swings to within 0.8 V of the rails, so on a single supply it
+* cannot sit at a 0.3 V baseline. Kept for reference; COMET uses the OPA356.
+.subckt LMH6629_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=4G SR=1.6G VSW=0.8
+.ends LMH6629_BEH
+
 * ---------------------------------------------------------------------
-* TI TLV3501 comparator: ~4.5 ns delay, push-pull rail-to-rail output.
-* No internal hysteresis in this model (add it with external resistors).
-* Pins: non-inverting, inverting, output, V+, V-
+* TI TLV3501 comparator: ~4.5 ns delay, push-pull rail-to-rail output,
+* 6 mV internal hysteresis (datasheet typical). Enabled while SHDN is more
+* than 1.7 V below V+ (tie SHDN to ground).
+* Pins: non-inverting, inverting, output, V+, V-, SHDN
 * ---------------------------------------------------------------------
-.subckt TLV3501_BEH inp inn out vp vn
-Bc c 0 V=2*(V(vn)+(V(vp)-V(vn))*0.5*(1+tanh((V(inp)-V(inn))/0.2m)))
+.subckt TLV3501_BEH inp inn out vp vn shdn
+Bs s0 0 V=0.5*(1+tanh((V(inp)-V(inn)+3m*(2*V(st)-1))/0.2m))
+Rs1 s0 st 1k
+Cs st 0 0.3p
+Ben en 0 V=0.5*(1-tanh((V(shdn)-(V(vp)-1.3))/0.05))
+Bc c 0 V=2*(V(vn)+(V(vp)-V(vn))*V(st)*V(en))
 Rs c c1 50
 T1 c1 0 c2 0 Td=3.8n Z0=50
 Rt c2 0 50
@@ -56,8 +67,6 @@ Rf c2 c3 100
 Cf c3 0 7p
 Bo o 0 V=V(c3)
 Ro o out 5
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends TLV3501_BEH
 
 * ---------------------------------------------------------------------
@@ -72,8 +81,6 @@ Rf c2 c3 100
 Cf c3 0 7p
 Bo o 0 V=V(c3)
 Ro o y 10
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends AND2_LVC_BEH
 
 * ---------------------------------------------------------------------
@@ -92,8 +99,6 @@ Rf c2 c3 100
 Cf c3 0 7p
 Bo o 0 V=V(c3)
 Ro o y 10
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends SCHMITT_INV_LVC_BEH
 
 * ---------------------------------------------------------------------
@@ -124,16 +129,14 @@ Rfn cn2 cn3 100
 Cfn cn3 0 7p
 Bon on 0 V=V(cn3)
 Ron on qn 10
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends DFF_LVC_BEH
 
 * ---------------------------------------------------------------------
-* 74LVC1G123 monostable at 3.3 V (idealised).
-* A rising edge on B with /A low starts a pulse. The timing capacitor
-* sits between CEXT and REXT/CEXT, the timing resistor from REXT/CEXT
-* to VCC. Width = Rext*Cext here; the real part adds an offset at small
-* Cext, so trim on the bench.
+* 74LVC1G123 monostable at 3.3 V (idealised, NOT used in COMET).
+* Width = Rext*Cext in this model, but the real part is much slower at
+* small Cext: TI specifies 170-200 ns for Cext = 28 pF, Rext = 2 kOhm at
+* 3.3 V (Rext >= 1 kOhm). It cannot make COMET's 50 ns pulses; the
+* stretcher uses a 74LVC1G74 + RC + 74LVC1G14 one-shot instead.
 * Pins: /A, B, /CLR, Q, /Q, VCC, CEXT, REXT/CEXT, GND
 * ---------------------------------------------------------------------
 .subckt MONO123_LVC_BEH an b clrn q qn vcc cext rext gnd
@@ -162,8 +165,6 @@ Rfn cn2 cn3 100
 Cfn cn3 0 7p
 Bon on 0 V=V(cn3)
 Ron on qn 10
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends MONO123_LVC_BEH
 
 * ---------------------------------------------------------------------
@@ -186,8 +187,6 @@ Cqf k df {CQ*NPE}
 Cdf df a {CD*NPE}
 Bav df a I={NPE*(CD+CQ)}*max(0,V(k,a)-(24.45+21.5m*({TEMP}-21)))*(exp(-max(time-{T0},0)/2.1n)-exp(-max(time-{T0},0)/0.9n))/1.2n
 Cg k a {CG}
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends MICROFC60035_BEH
 
 * Schottky diode, approximate BAT54
@@ -197,8 +196,6 @@ Cg k a {CG}
 .subckt TS5A3159_BEH a b ctl
 S1 a b ctl 0 TS5A_SW
 .model TS5A_SW SW(Ron=1 Roff=1G Vt=1.65 Vh=0.1)
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends TS5A3159_BEH
 
 * Ferrite bead (BLM18 class): inductive at low frequency, resistive at
@@ -207,8 +204,6 @@ S1 a b ctl 0 TS5A_SW
 L1 a m {L}
 R1 m b 0.15
 RP a b 470
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends BEAD_BEH
 
 * ---------------------------------------------------------------------
@@ -237,24 +232,24 @@ Rid id sd 1.5k
 Csd sd 0 1n
 Bod od 0 V=V(sd)
 Rod od vd 1
-* ngspice: ngspice COMET_PEAK.cir, then type run and plot v(<net>)
-* LTspice: open this file and press Run
 .ends MCP4728_BEH
 
 * ---- stimulus parameters ----
-.param AMP=60m
+.param AMP=370m
 
 * ---- circuit (from the sheet) ----
-XU10 from_afe_a_shaper_u2 n1 n2 p5v_a 0 OPA355_BEH
+XU10 from_afe_a_shaper_u2 n1 n2 p3v3_a 0 OPA356_BEH
 D1 n2 n1 BAT54
 C20 n1 0 470p
 R19 n1 0 43k
-XSW1 n1 0 from_mcu_peak_rst TS5A3159_BEH
-XU11 n1 to_mcu_adc_peak_a to_mcu_adc_peak_a p5v_a 0 OPA355_BEH
+XSW1 n1 n3 from_mcu_peak_rst TS5A3159_BEH
+R18 n3 0 100
+R39 from_mcu_peak_rst 0 100k
+XU11 n1 to_mcu_adc_peak_a to_mcu_adc_peak_a p3v3_a 0 OPA356_BEH
 
 * ---- test bench ----
-V_P5V_A p5v_a 0 5
-B_SHAPED from_afe_a_shaper_u2 0 V={AMP}*max(time-200n,0)/100n*exp(1-max(time-200n,0)/100n)
+V_P3V3_A p3v3_a 0 3.3
+B_SHAPED from_afe_a_shaper_u2 0 V=0.3+{AMP}*max(time-200n,0)/100n*exp(1-max(time-200n,0)/100n)
 V_RST from_mcu_peak_rst 0 PULSE(0 3.3 2.5u 5n 5n 200n 10u)
 C_ADC to_mcu_adc_peak_a 0 10p
 

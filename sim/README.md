@@ -5,13 +5,13 @@ Generated from the COMET system schematic, so they always match the drawings on 
 | Folder | Sheet | What the simulation shows |
 |---|---|---|
 | `sipm/` | SiPM carrier PCB | Muon pulse from the SiPM model through the coax into 50 Ω; bias droop |
-| `bias/` | Bias supply | Ripple from the converter to the SiPMs (transient) and the filter response (AC) |
+| `bias/` | Bias supply | Bias set by the DAC through the LT3482 CTRL pin, monitor readbacks, ripple at both SiPMs (transient) and the filter response (AC) |
 | `afe/` | Analog front-end | SiPM pulse → amplifier (TP2) → shaper |
-| `peak/` | Peak-hold | Hold accuracy, reset, linearity |
+| `peak/` | Peak-hold | Hold accuracy, reset through R18, linearity |
 | `thr/` | Threshold DAC | DAC codes → thresholds at the comparator pins |
-| `comp/` | Comparator | Threshold crossing, delay, chatter with noise |
-| `stretch/` | Pulse stretcher | 74LVC1G123 and the flip-flop fallback, both set to 50 ns |
-| `coinc/` | Coincidence logic | AND + latch, LATCH_CLR, self-test pulse, window |
+| `comp/` | Comparator | Threshold crossing, delay, dark pulses on the falling tail (re-trigger margin) |
+| `stretch/` | Pulse stretcher | Flip-flop one-shot (74LVC1G74, RC delay, 74LVC1G14) set to 50 ns |
+| `coinc/` | Coincidence logic | AND + latch, LATCH_CLR, self-test pulse into both channels, window |
 
 Each folder has:
 

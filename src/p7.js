@@ -1,14 +1,16 @@
 
 /* ---------- probe waveforms ---------- */
-const THR = 120, DT = 0.5, NSMP = 401;
+// Shapes and sizes follow the SPICE results of the AFE sheet: TP1 rises in ~4 ns and decays with τ ≈ 220 ns
+// (14 mV for a typical muon); TP2 = 21 × TP1, band-limited by the OPA356 (peak ≈ 55 ns after the start, 0.23 V).
+const THR = 120, DT = 1, NSMP = 401;
 const shape = (x, tr, tf) => x < 0 ? 0 : (1 - Math.exp(-x/tr)) * Math.exp(-x/tf);
 const pk = (tr, tf) => { let m = 0; for (let x = 0; x < 300; x += 0.1) m = Math.max(m, shape(x, tr, tf)); return m; };
-const PK1 = pk(2.5, 40), PK2 = pk(9, 50);
+const PK1 = pk(1.5, 224), PK2 = pk(20, 230);
 function chan(t0, afePk){
   const s = [], a = [], c = [], w = []; let edge = -1;
   for (let i = 0; i < NSMP; i++){ const t = i*DT;
-    s.push(afePk/20 * shape(t-t0, 2.5, 40) / PK1);
-    const v = afePk * shape(t-t0, 9, 50) / PK2; a.push(v);
+    s.push(afePk/21 * shape(t-t0, 1.5, 224) / PK1);
+    const v = afePk * shape(t-t0, 20, 230) / PK2; a.push(v);
     if (edge < 0 && v > THR) edge = t; }
   for (let i = 0; i < NSMP; i++){ const j = Math.round((i*DT - 4.5)/DT); c.push(j >= 0 && a[j] > THR ? 3.3 : 0); }
   const on = edge + 7.5;
@@ -17,8 +19,8 @@ function chan(t0, afePk){
 }
 const ZERO = (() => { const z = new Array(NSMP).fill(0); return {s:z, a:z, c:z, w:z}; })();
 const TPS = [
- {n:"TP1", t:"SiPM output", p:"50 Ω load, before the AFE", k:"ana", y:40, yl:"40 mV", f:"s"},
- {n:"TP2", t:"AFE output", p:"×20 · dotted line = threshold", k:"ana", y:1000, yl:"1 V", f:"a"},
+ {n:"TP1", t:"SiPM output", p:"50 Ω load, before the AFE", k:"ana", y:30, yl:"30 mV", f:"s"},
+ {n:"TP2", t:"AFE output", p:"×21 above the 0.3 V baseline · dotted line = threshold", k:"ana", y:600, yl:"0.6 V", f:"a"},
  {n:"TP3", t:"Comparator", p:"high while above threshold", k:"dig", y:3.6, yl:"3.3 V", f:"c"},
  {n:"TP4", t:"Stretched pulse", p:"fixed 50 ns width", k:"dig", y:3.6, yl:"3.3 V", f:"w"},
  {n:"TP5", t:"Coincidence", p:"A AND B, latched for the MCU", k:"dig", y:3.6, yl:"3.3 V", f:"and"},
@@ -27,11 +29,11 @@ const probesEl = $("#probes");
 const cards = TPS.map(tp => { const d = document.createElement("div"); d.className = "probe"; d.style.setProperty("--tpc", `var(--c-${tp.k})`);
   d.innerHTML = `<h3><span>${tp.t}</span><span class="tpn">${tp.n}</span></h3><p>${tp.p}</p><div class="pv"></div>`; probesEl.appendChild(d); return d; });
 function plot(tp, A, B){
-  const x0 = 30, x1 = 252, y0 = 8, y1 = 72, X = t => x0 + t/200*(x1-x0), Y = v => y1 - Math.min(v, tp.y)/tp.y*(y1-y0);
+  const x0 = 30, x1 = 252, y0 = 8, y1 = 72, X = t => x0 + t/400*(x1-x0), Y = v => y1 - Math.min(v, tp.y)/tp.y*(y1-y0);
   const line = arr => { let p = ""; for (let i = 0; i < NSMP; i += 2) p += `${X(i*DT).toFixed(1)},${Y(arr[i]).toFixed(1)} `; return p; };
   let h = `<svg viewBox="0 0 260 90" aria-hidden="true"><path class="ax" d="M${x0} ${y0}V${y1}H${x1}"/>`;
-  [0,50,100,150,200].forEach(t => h += `<path class="ax" d="M${X(t)} ${y1}v3"/>`);
-  h += `<text class="axl" x="${x0}" y="86" text-anchor="middle">0</text><text class="axl" x="${X(100)}" y="86" text-anchor="middle">100</text><text class="axl" x="${x1}" y="86" text-anchor="end">200 ns</text>`;
+  [0,100,200,300,400].forEach(t => h += `<path class="ax" d="M${X(t)} ${y1}v3"/>`);
+  h += `<text class="axl" x="${x0}" y="86" text-anchor="middle">0</text><text class="axl" x="${X(200)}" y="86" text-anchor="middle">200</text><text class="axl" x="${x1}" y="86" text-anchor="end">400 ns</text>`;
   h += `<text class="axl" x="${x0-3}" y="${y0+6}" text-anchor="end">${tp.yl}</text>`;
   if (tp.f === "a") h += `<path class="thl" d="M${x0} ${Y(THR)}H${x1}"/>`;
   h += `<polyline class="trc b" points="${line(B)}"/><polyline class="trc" points="${line(A)}"/></svg>`;
@@ -56,15 +58,18 @@ const clearLive = () => cards.forEach(c => c.classList.remove("live"));
 const S = {seq:228, tus:184200000, nA:0, nB:0, nC:0, busy:false, auto:null};
 const tempNow = () => 23.6 + 0.25*Math.sin(S.tus/6e8);
 const vbias = T => 24.45 + 0.0215*(T-21) + 2.5;
-const gumbel = () => { const u = Math.random()*0.998 + 0.001; return 470 - 85*Math.log(-Math.log(u)); };
+// Landau-like spread of the TP2 pulse height (mV): most probable 230 mV, as simulated for 140 photoelectrons
+const gumbel = () => { const u = Math.random()*0.998 + 0.001; return 230 - 40*Math.log(-Math.log(u)); };
+// peak-hold ADC code for a TP2 pulse: shaper = 1.6 × TP2 (clips 1.45 V above the baseline), held = 0.939 × shaper − 19 mV
+const adcCode = mv => Math.round((0.300 + 0.939*Math.min(1.6*mv/1000, 1.45) - 0.019)/3.3*4095);
 const pad = (n, w) => String(n).padStart(w, "0");
 function makeEvent(kind){
   advance(kind === "coinc" ? Math.round(-Math.log(1 - Math.random())*60e6/Math.max(rateAt(TH) + RACC, 0.05)) : Math.round(-Math.log(1 - Math.random())*25000));
   const T = tempNow(), V = vbias(T);
   if (kind === "coinc"){
-    const hA = Math.min(4095, Math.round(gumbel())), hB = Math.min(4095, Math.round(gumbel()));
+    const aA = gumbel(), aB = gumbel(), hA = adcCode(aA), hB = adcCode(aB);
     S.seq++;
-    return {kind, T, V, rec:{seq:S.seq, t:S.tus, hA, hB, T, V}, wf:{A:chan(20, hA*1.25), B:chan(22.5, hB*1.25)}};
+    return {kind, T, V, rec:{seq:S.seq, t:S.tus, hA, hB, T, V}, wf:{A:chan(20, aA), B:chan(22.5, aB)}};
   }
   return {kind, T, V, wf:{A:chan(20, 150 + Math.random()*60), B:null}};
 }

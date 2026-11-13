@@ -9,36 +9,53 @@
 * =====================================================================
 
 * ---------------------------------------------------------------------
-* Generic op-amp: single-pole, slew-limited, output clamped to the rails.
+* Generic op-amp: single-pole, slew-limited.
+*   VSW  = how close the output can swing to each rail (datasheet "output swing from rail")
+*   VCMH = input common-mode headroom below V+ (inputs above V(vp)-VCMH are clipped there)
+*   IB   = input bias current flowing out of each input
 * Pins: non-inverting, inverting, output, V+, V-
 * ---------------------------------------------------------------------
-.subckt OPAMP_BEH inp inn out vp vn params: GBW=1G SR=1G
+.subckt OPAMP_BEH inp inn out vp vn params: GBW=1G SR=1G VSW=0.05 VCMH=0 IB=0
 .param CX={1m/(6.2832*GBW)}
 .param IMAX={SR*CX}
-Bg 0 x I={IMAX}*tanh(1m*(V(inp)-V(inn))/{IMAX}) - 20m*(V(x)-max(V(vn),min(V(vp),V(x))))
+Bip inp 0 I={IB}
+Bin inn 0 I={IB}
+Bg 0 x I={IMAX}*tanh(1m*(min(V(inp),V(vp)-{VCMH})-min(V(inn),V(vp)-{VCMH}))/{IMAX}) - 20m*(V(x)-max(V(vn),min(V(vp),V(x))))
 Cx x 0 {CX}
 Rx x 0 10Meg
-Bo o 0 V=max(V(vn)+0.02,min(V(vp)-0.05,V(x)))
+Bo o 0 V=max(V(vn)+{VSW},min(V(vp)-{VSW},V(x)))
 Ro o out 10
 .ends OPAMP_BEH
 
-* TI LMH6629: 4 GHz gain-bandwidth (decompensated, gain >= 10), 1600 V/us
-.subckt LMH6629_BEH inp inn out vp vn
-X1 inp inn out vp vn OPAMP_BEH GBW=4G SR=1.6G
-.ends LMH6629_BEH
-
-* TI OPA355: 200 MHz gain-bandwidth, 300 V/us
+* TI OPA356 (and OPA355, the version with an enable pin): 200 MHz GBW,
+* unity-gain stable, 300 V/us, output within ~0.1 V of the rails (1 kOhm load),
+* input common mode from V- to (V+) - 1.5 V, input bias current a few pA.
+.subckt OPA356_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg VSW=0.1 VCMH=1.5
+.ends OPA356_BEH
 .subckt OPA355_BEH inp inn out vp vn
-X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg
+X1 inp inn out vp vn OPAMP_BEH GBW=200Meg SR=300Meg VSW=0.1 VCMH=1.5
 .ends OPA355_BEH
 
+* TI LMH6629: 4 GHz GBW, stable only at gain >= 10 (decompensated), 1600 V/us.
+* Its output only swings to within 0.8 V of the rails, so on a single supply it
+* cannot sit at a 0.3 V baseline. Kept for reference; COMET uses the OPA356.
+.subckt LMH6629_BEH inp inn out vp vn
+X1 inp inn out vp vn OPAMP_BEH GBW=4G SR=1.6G VSW=0.8
+.ends LMH6629_BEH
+
 * ---------------------------------------------------------------------
-* TI TLV3501 comparator: ~4.5 ns delay, push-pull rail-to-rail output.
-* No internal hysteresis in this model (add it with external resistors).
-* Pins: non-inverting, inverting, output, V+, V-
+* TI TLV3501 comparator: ~4.5 ns delay, push-pull rail-to-rail output,
+* 6 mV internal hysteresis (datasheet typical). Enabled while SHDN is more
+* than 1.7 V below V+ (tie SHDN to ground).
+* Pins: non-inverting, inverting, output, V+, V-, SHDN
 * ---------------------------------------------------------------------
-.subckt TLV3501_BEH inp inn out vp vn
-Bc c 0 V=2*(V(vn)+(V(vp)-V(vn))*0.5*(1+tanh((V(inp)-V(inn))/0.2m)))
+.subckt TLV3501_BEH inp inn out vp vn shdn
+Bs s0 0 V=0.5*(1+tanh((V(inp)-V(inn)+3m*(2*V(st)-1))/0.2m))
+Rs1 s0 st 1k
+Cs st 0 0.3p
+Ben en 0 V=0.5*(1-tanh((V(shdn)-(V(vp)-1.3))/0.05))
+Bc c 0 V=2*(V(vn)+(V(vp)-V(vn))*V(st)*V(en))
 Rs c c1 50
 T1 c1 0 c2 0 Td=3.8n Z0=50
 Rt c2 0 50
@@ -111,11 +128,11 @@ Ron on qn 10
 .ends DFF_LVC_BEH
 
 * ---------------------------------------------------------------------
-* 74LVC1G123 monostable at 3.3 V (idealised).
-* A rising edge on B with /A low starts a pulse. The timing capacitor
-* sits between CEXT and REXT/CEXT, the timing resistor from REXT/CEXT
-* to VCC. Width = Rext*Cext here; the real part adds an offset at small
-* Cext, so trim on the bench.
+* 74LVC1G123 monostable at 3.3 V (idealised, NOT used in COMET).
+* Width = Rext*Cext in this model, but the real part is much slower at
+* small Cext: TI specifies 170-200 ns for Cext = 28 pF, Rext = 2 kOhm at
+* 3.3 V (Rext >= 1 kOhm). It cannot make COMET's 50 ns pulses; the
+* stretcher uses a 74LVC1G74 + RC + 74LVC1G14 one-shot instead.
 * Pins: /A, B, /CLR, Q, /Q, VCC, CEXT, REXT/CEXT, GND
 * ---------------------------------------------------------------------
 .subckt MONO123_LVC_BEH an b clrn q qn vcc cext rext gnd

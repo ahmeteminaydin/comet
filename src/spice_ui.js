@@ -9,9 +9,55 @@ function engineUrls(){
   const local = new URL(`vendor/eecircuit-engine-${ENGINE_VER}.js`, location.href).href;
   return onSite() ? [local] : [local, `https://cdn.jsdelivr.net/npm/eecircuit-engine@${ENGINE_VER}/dist/eecircuit-engine.mjs`, `https://unpkg.com/eecircuit-engine@${ENGINE_VER}/dist/eecircuit-engine.mjs`];
 }
+/* ngspice runs in a Web Worker when the browser allows it, so a run that never finishes (an edited
+   value can make the solver crawl) is stopped after SIM_TIMEOUT instead of freezing the page.
+   If workers are blocked, it falls back to the page thread, where a stuck run cannot be stopped. */
+const SIM_TIMEOUT = 30000, SIM_LOAD_TIMEOUT = 120000;
+const SIM_WORKER_SRC = `let sim = null;
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    if (!sim){
+      let last = null;
+      for (const u of m.urls){ try { const mod = await import(u); const s = new mod.Simulation(); await s.start(); sim = s; break; } catch(err){ last = err; } }
+      if (!sim) throw last || new Error("simulator not available");
+    }
+    if (m.text == null){ self.postMessage({id: m.id, ok: true}); return; }
+    sim.setNetList(m.text);
+    const r = await sim.runSim();
+    self.postMessage({id: m.id, ok: true, r, err: sim.getError ? sim.getError() : []});
+  } catch(err){ self.postMessage({id: m.id, ok: false, msg: String(err && err.message || err)}); }
+};`;
+function spKillWorker(err){
+  const w = SPS.worker; SPS.worker = null; if (w) w.terminate();
+  if (SPS.eng && SPS.eng.worker){ SPS.eng = null; SPS.loading = null; }
+  Object.values(SPS.pend || {}).forEach(p => { clearTimeout(p.timer); p.rej(err); }); SPS.pend = {};
+}
+function spAsk(text, ms){
+  return new Promise((res, rej) => {
+    const w = SPS.worker; if (!w){ rej(new Error("no simulator worker")); return; }
+    const id = SPS.seq = (SPS.seq || 0) + 1;
+    const timer = setTimeout(() => spKillWorker(Object.assign(new Error(text == null ? "the simulator took too long to load" :
+      `the run did not finish within ${Math.round(ms/1000)} s, so it was stopped. The changed values probably make the solver take tiny time steps; undo the last change or press Reset values`), {timeout: true})), ms);
+    SPS.pend[id] = {res, rej, timer};
+    w.postMessage({id, urls: engineUrls(), text});
+  });
+}
+async function spLoadWorker(){
+  if (SPS.noWorker || typeof Worker === "undefined") return false;
+  try {
+    const w = new Worker(URL.createObjectURL(new Blob([SIM_WORKER_SRC], {type: "text/javascript"})), {type: "module"});
+    SPS.worker = w; SPS.pend = {};
+    w.onmessage = e => { const m = e.data, p = SPS.pend[m.id]; if (!p) return; delete SPS.pend[m.id]; clearTimeout(p.timer); m.ok ? p.res(m) : p.rej(new Error(m.msg)); };
+    w.onerror = e => { e.preventDefault(); spKillWorker(new Error("the simulator worker stopped" + (e.message ? ": " + e.message : ""))); };
+    await spAsk(null, SIM_LOAD_TIMEOUT);
+    return true;
+  } catch(e){ spKillWorker(e); SPS.noWorker = true; return false; }
+}
 async function spiceEngine(){
   if (SPS.eng) return SPS.eng;
   if (!SPS.loading) SPS.loading = (async () => {
+    if (await spLoadWorker()){ SPS.eng = {worker: true}; return SPS.eng; }
     let last;
     for (const u of engineUrls()){
       try { const m = await import(u); const sim = new m.Simulation(); await sim.start(); SPS.eng = sim; return sim; }
@@ -21,8 +67,12 @@ async function spiceEngine(){
   })();
   return SPS.loading;
 }
-function spiceRun(text){
-  const job = SPS.queue.then(async () => { const sim = await spiceEngine(); sim.setNetList(text); const r = await sim.runSim(); return {r, err: sim.getError ? sim.getError() : []}; });
+function spiceRun(text, ms = SIM_TIMEOUT){
+  const job = SPS.queue.then(async () => {
+    const sim = await spiceEngine();
+    if (sim.worker){ const m = await spAsk(text, ms); return {r: m.r, err: m.err || []}; }
+    sim.setNetList(text); const r = await sim.runSim(); return {r, err: sim.getError ? sim.getError() : []};
+  });
   SPS.queue = job.catch(() => {});
   return job;
 }
@@ -220,7 +270,7 @@ async function spRunCurrent(){
     const errs = (err || []).filter(Boolean);
     spStatus(`Simulated in ${((t2 - t1)/1000).toFixed(2)} s${t1 - t0 > 300 ? ` (simulator loaded in ${((t1 - t0)/1000).toFixed(1)} s)` : ""}.${errs.length ? " ngspice: " + errs.slice(0, 2).join(" ") : ""}`, errs.length ? "warn" : "ok");
   } catch(e){
-    spStatus(onSite() ? `The simulation failed: ${e.message || e}. Check the part values you changed.` : `The simulator could not load here. Open the GitHub site (${SITE}) to run simulations; the downloads work from either place.`, "bad");
+    spStatus(e.timeout ? `Stopped: ${e.message}.` : SPS.eng || onSite() ? `The simulation failed: ${e.message || e}. Check the part values you changed.` : `The simulator could not load here. Open the GitHub site (${SITE}) to run simulations; the downloads work from either place.`, "bad");
   } finally { SPS.busy = false; sp$("sp-run").disabled = false; }
 }
 async function spRunSweep(i){
@@ -242,7 +292,7 @@ async function spRunSweep(i){
     spDrawSweep(sp$("sp-plot"), sw, pts); sp$("sp-plot").classList.remove("stale");
     sp$("sp-res").innerHTML = `<caption class="sp-sum">${esc(sw.summary ? sw.summary(pts) : "")}</caption><tbody><tr><td colspan="3"><div class="sp-swgrid">` + pts.map(p => `<span><b>${p[0]}</b> → ${isFinite(p[1]) ? +p[1].toPrecision(4) : "—"}</span>`).join("") + `</div></td></tr></tbody>`;
     spStatus(`${sw.label} done: ${pts.length} simulations. Press Run simulation to return to the single run.`, "ok");
-  } catch(e){ spStatus(`The sweep failed: ${e.message || e}`, "bad"); }
+  } catch(e){ spStatus(e.timeout ? `Sweep stopped: ${e.message}.` : `The sweep failed: ${e.message || e}`, "bad"); }
   finally { SIMP[id][sw.param] = keep; SPS.busy = false; sp$("sp-run").disabled = false; }
 }
 

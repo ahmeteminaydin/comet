@@ -4,7 +4,8 @@ const normPin = s => String(s).replace(/̅/g, "N").replace(/[^A-Za-z0-9]/g, "").
 const PARTS = {
   "LMH6629":      {sub:"LMH6629_BEH", pins:["INP","INN","OUT","VP","VN"]},
   "OPA355":       {sub:"OPA355_BEH", pins:["INP","INN","OUT","VP","VN"]},
-  "TLV3501":      {sub:"TLV3501_BEH", pins:["INP","INN","OUT","VP","VN"]},
+  "OPA356":       {sub:"OPA356_BEH", pins:["INP","INN","OUT","VP","VN"]},
+  "TLV3501":      {sub:"TLV3501_BEH", pins:["INP","INN","OUT","VP","VN","SHDN"], tie:{SHDN:"0"}},
   "74LVC1G08":    {sub:"AND2_LVC_BEH", pins:["A","B","Y"]},
   "74LVC1G14":    {sub:"SCHMITT_INV_LVC_BEH", pins:["A","Y"]},
   "74LVC1G74":    {sub:"DFF_LVC_BEH", pins:["D","CLK","Q","QN","CLRN","PREN","VCC","GND"], tie:{QN:"nc", CLRN:"hi", PREN:"hi", VCC:"hi", GND:"0", D:"hi"}},
@@ -22,13 +23,13 @@ function netName(s){ let n = String(s).toLowerCase().replace(/^\+/, "p").replace
 function spiceExtract(id){
   if (SIMCFG[id]) spiceValues(id);                 // defaults first: building them draws the sheet too
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), keep = REC;
-  REC = {parts:[], wires:[], gnd:[], pwr:[], labels:[], ports:[], tps:[], nc:[], links:[], notes:[]};
+  REC = {parts:[], wires:[], gnd:[], pwr:[], labels:[], ports:[], tps:[], nc:[], links:[], notes:[], junctions:[]};
   try { drawSheet(id, svg); const r = REC; return r; } finally { REC = keep; }
 }
 function spiceValues(id){                          // part values for a sheet with a SPICE model (used while drawing)
   const cfg = SIMCFG[id]; if (!cfg) return null;
   if (!SIMV[id]){
-    const rec = spiceExtract0(id), V = {vals:{}, def:{}, pre:{}, suf:{}};
+    const rec = spiceExtract0(id), V = {vals:{}, def:{}, pre:{}, suf:{}, inert:Object.assign({}, cfg.inert || {})};
     rec.parts.forEach(p => {
       if (!/^(R|C|L|FB)$/.test(p.kind) || (cfg.exclude || []).includes(p.ref)) return;
       const lv = labelVal(p.val), ov = (cfg.values || {})[p.ref];
@@ -42,8 +43,8 @@ function spiceValues(id){                          // part values for a sheet wi
 }
 function spiceExtract0(id){                        // extraction without part values (avoids recursion while building defaults)
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"), keep = SIMV[id], keepRec = REC;
-  SIMV[id] = {vals:{}, def:{}, pre:{}, suf:{}};
-  REC = {parts:[], wires:[], gnd:[], pwr:[], labels:[], ports:[], tps:[], nc:[], links:[], notes:[]};
+  SIMV[id] = {vals:{}, def:{}, pre:{}, suf:{}, inert:{}};
+  REC = {parts:[], wires:[], gnd:[], pwr:[], labels:[], ports:[], tps:[], nc:[], links:[], notes:[], junctions:[]};
   try { drawSheet(id, svg); const r = REC; return r; } finally { REC = keepRec; if (keep) SIMV[id] = keep; else delete SIMV[id]; }
 }
 function spiceParams(id){
@@ -68,6 +69,7 @@ function spiceConnect(rec){
   rec.parts.forEach(p => (Array.isArray(p.pins) ? p.pins : Object.values(p.pins)).forEach(q => pts.push(q)));
   rec.gnd.forEach(q => pts.push(q)); rec.pwr.forEach(q => pts.push(q.pt)); rec.ports.forEach(q => pts.push(q.pt)); rec.tps.forEach(q => pts.push(q.pt));
   rec.labels.forEach(l => l.at && pts.push(l.at));
+  (rec.junctions || []).forEach(q => pts.push(q));
   rec.links.forEach(([a, b]) => { pts.push(a, b); uni(K(a), K(b)); });
   const inside = (q, s) => {
     const [x1, y1, x2, y2] = s;

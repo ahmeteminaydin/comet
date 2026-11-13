@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Assemble the COMET page: comet.html (Claude artifact) and index.html (GitHub Pages)."""
-import json, os, sys
+import json, os, re, sys
 D = os.path.dirname(os.path.abspath(__file__))
 rd = lambda f: open(os.path.join(D, f), encoding="utf-8").read()
 lib = rd("comet_models.lib")
@@ -10,7 +10,18 @@ order = ["g0.js","g1.js","g2.js","g3.js","g4.js","g5.js","g6.js","g7.js","g8.js"
 for opt in ["spice_asc.js", "spice_ui.js", "spice_pre.js"]:
     if os.path.exists(os.path.join(D, opt)): order.append(opt)
 order += ["p10.js", "p9.js"]
-js = "".join(rd(f) for f in order)
+review = json.loads(rd("review.json"))
+js = "\n/* ---------- design review log (generated from review.json) ---------- */\nconst REVIEW = " + json.dumps(review, ensure_ascii=False) + ";\n" + "".join(rd(f) for f in order)
+# REVIEW.md for the repository, with sheet titles taken from the drawings
+titles = {m.group(1): m.group(2).split(" · ")[0] for f in sorted(os.listdir(D)) if re.match(r"s\d\.js$", f)
+          for m in re.finditer(r'SHEETS\.(\w+) = \{dwg:"[^"]*", title:"([^"]*)"', rd(f))}
+titles["overview"] = "Whole system"
+md = [f"# COMET design review ({review['date']})", "", review["intro"], ""]
+for kind, head, lab in [("error", "Errors found and fixed", "Fix"), ("sim", "Simulation problems fixed", "Fix"), ("note", "Open considerations", "To do")]:
+    items = [r for r in review["items"] if r["kind"] == kind]
+    md += [f"## {head} ({len(items)})", ""]
+    for r in items: md += [f"### {titles.get(r['sheet'], r['sheet'])}: {r['title']}", "", r["text"], "", f"**{lab}:** {r['fix']}", ""]
+open(os.path.join(D, "..", "REVIEW.md") if os.path.exists(os.path.join(D, "..", "vendor")) else os.path.join(D, "REVIEW.md"), "w", encoding="utf-8").write("\n".join(md))
 open(os.path.join(D, "all.js"), "w", encoding="utf-8").write(js)
 p1, p2 = rd("p1.html"), rd("p2.html")
 open(os.path.join(D, "comet.html"), "w", encoding="utf-8").write(p1 + p2 + "<script>\n" + js + "\n</script>\n")
